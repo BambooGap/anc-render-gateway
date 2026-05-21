@@ -10,6 +10,20 @@ from anc_gateway.api.request_context import get_request_id
 from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import CompiledRenderPacket, FailureCacheRecord, PatchPacket
 from anc_gateway.core.schemas import RenderContract
+from anc_gateway.manual.job_manager import (
+    complete_manual_job,
+    create_manual_job,
+    fail_manual_job,
+    get_manual_job,
+    list_recent_manual_jobs,
+    manual_job_to_response,
+)
+from anc_gateway.manual.schemas import (
+    CompleteManualJobRequest,
+    FailManualJobRequest,
+    ManualJobCreateRequest,
+    ManualJobResponse,
+)
 from anc_gateway.render.job_manager import (
     create_render_job,
     get_render_job,
@@ -40,7 +54,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "5A"
+SERVICE_PHASE = "5B-Manual"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -226,3 +240,54 @@ def submit_vendor_render_endpoint(job_id: str) -> RenderJobResponse:
         if job is None:
             raise ValueError(f"Render job not found: {job_id}")
         return render_job_to_response(submit_render_job_to_vendor(session, job))
+
+
+@router.post("/manual-jobs", response_model=ManualJobResponse)
+def create_manual_job_endpoint(
+    request: Request,
+    payload: ManualJobCreateRequest,
+) -> ManualJobResponse:
+    with get_session() as session:
+        job = create_manual_job(session, payload, request_id=get_request_id(request))
+        return manual_job_to_response(job)
+
+
+@router.get("/manual-jobs/recent", response_model=list[ManualJobResponse])
+def recent_manual_jobs_endpoint(limit: int = 20) -> list[ManualJobResponse]:
+    with get_session() as session:
+        return [manual_job_to_response(job) for job in list_recent_manual_jobs(session, limit=limit)]
+
+
+@router.get("/manual-jobs/{manual_job_id}", response_model=ManualJobResponse)
+def get_manual_job_endpoint(manual_job_id: str) -> ManualJobResponse:
+    with get_session() as session:
+        job = get_manual_job(session, manual_job_id)
+        if job is None:
+            raise ValueError(f"Manual job not found: {manual_job_id}")
+        return manual_job_to_response(job)
+
+
+@router.post("/manual-jobs/{manual_job_id}/complete", response_model=ManualJobResponse)
+def complete_manual_job_endpoint(
+    manual_job_id: str,
+    payload: CompleteManualJobRequest,
+) -> ManualJobResponse:
+    with get_session() as session:
+        job = get_manual_job(session, manual_job_id)
+        if job is None:
+            raise ValueError(f"Manual job not found: {manual_job_id}")
+        return manual_job_to_response(complete_manual_job(session, job, payload))
+
+
+@router.post("/manual-jobs/{manual_job_id}/fail", response_model=ManualJobResponse)
+def fail_manual_job_endpoint(
+    manual_job_id: str,
+    payload: FailManualJobRequest | None = None,
+) -> ManualJobResponse:
+    with get_session() as session:
+        job = get_manual_job(session, manual_job_id)
+        if job is None:
+            raise ValueError(f"Manual job not found: {manual_job_id}")
+        return manual_job_to_response(
+            fail_manual_job(session, job, user_notes=payload.user_notes if payload else None)
+        )

@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "5A",
+  "phase": "5B-Manual",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -319,6 +319,72 @@ curl http://127.0.0.1:8000/vendors/fake-http/capabilities
 - 后续真实厂商的 key 必须通过环境变量读取，例如 `JIMENG_API_KEY`、`KLING_API_KEY`
 
 当前仍未接真实视频厂商。Phase 5B 才会选择一个真实平台实现具体 adapter。
+
+## Phase 5B-Manual Manual Vendor Workflow
+
+如果暂时没有真实视频生成 API，可以使用 Manual Vendor Workflow。系统会生成可复制到网页端的视频生成提交包，用户手动去平台生成视频，再把 `result_video_uri` 或本地文件路径回填系统，继续走 `/audit` 和 `/recover`。
+
+支持平台：
+
+- `jimeng_web`
+- `gemini_flow`
+- `generic_web`
+
+明确不支持：
+
+- 模拟登录
+- 抓取 cookie
+- Playwright / Selenium 浏览器自动化
+- 绕过平台限制
+
+创建 manual job：
+
+```bash
+curl -X POST http://127.0.0.1:8000/manual-jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "condition_hash": "use-condition-hash-from-compile",
+    "compiled_prompt": "use-compiled-prompt-from-compile",
+    "source_map": {"fragments": {}},
+    "platform": "generic_web",
+    "visual_anchor_uri": null,
+    "notes": "生成前手动检查提示词"
+  }'
+```
+
+查询 manual job：
+
+```bash
+curl http://127.0.0.1:8000/manual-jobs/{manual_job_id}
+curl "http://127.0.0.1:8000/manual-jobs/recent?limit=20"
+```
+
+手动生成视频后回填：
+
+```bash
+curl -X POST http://127.0.0.1:8000/manual-jobs/{manual_job_id}/complete \
+  -H "Content-Type: application/json" \
+  -d '{
+    "result_video_uri": "file:///tmp/manual_video.mp4",
+    "user_notes": "网页端手动生成完成"
+  }'
+```
+
+标记失败：
+
+```bash
+curl -X POST http://127.0.0.1:8000/manual-jobs/{manual_job_id}/fail \
+  -H "Content-Type: application/json" \
+  -d '{"user_notes": "平台额度不足"}'
+```
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli manual-demo
+```
+
+完成 manual job 后，可以用回填的视频路径作为审计对象的人工记录，继续通过 `/audit` 归因和 `/recover` 生成修复补丁。后续如果获得正式 API，再实现真实 Vendor Adapter，而不是用自动化绕过网页端限制。
 
 ## 当前限制
 

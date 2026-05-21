@@ -144,3 +144,26 @@ class RenderJobModel(Base):
         default=_now,
         onupdate=_now,
     )
+
+
+class ManualJobModel(Base):
+    __tablename__ = "manual_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    platform: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    condition_hash: Mapped[str] = mapped_column(String(64), index=True)
+    compiled_prompt: Mapped[str] = mapped_column(Text)
+    source_map_json: Mapped[str] = mapped_column(Text)
+    visual_anchor_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    copy_instructions: Mapped[str] = mapped_column(Text)
+    result_video_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now,
+        onupdate=_now,
+    )
