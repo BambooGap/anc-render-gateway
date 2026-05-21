@@ -4,6 +4,8 @@ import argparse
 import json
 from collections.abc import Sequence
 
+from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
+from anc_gateway.audit.schemas import ManualAuditCreateRequest
 from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import RFSAuditResult, RenderContract, SceneObject, StateT
 from anc_gateway.manual.job_manager import complete_manual_job, create_manual_job
@@ -20,7 +22,7 @@ from anc_gateway.render.schemas import RenderJobCreateRequest
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import create_engine_from_url, get_database_url, get_session, init_db
-from anc_gateway.storage.repositories import list_recent_failures
+from anc_gateway.storage.repositories import list_recent_failures, save_failure_record, save_manual_audit
 
 
 def demo_sliding_window() -> None:
@@ -234,6 +236,96 @@ def manual_demo() -> None:
     print(json.dumps(patch.model_dump(mode="json"), ensure_ascii=False, indent=2))
 
 
+def manual_audit_demo() -> None:
+    state = StateT(
+        id="state_manual_audit_demo_001",
+        shot_id="shot_manual_audit_demo_001",
+        objects=[
+            SceneObject(
+                id="window_01",
+                name="推拉窗",
+                object_type="sliding_window",
+                topology={"dof": "horizontal_slide", "rail": "上下轨道"},
+            )
+        ],
+    )
+    contract = RenderContract(shot_id="shot_manual_audit_demo_001", ruleset_fingerprint="rc1")
+    packet = compile_render_packet(state, contract, "她轻轻推开了推拉窗，风吹进房间。")
+
+    manual_request = ManualJobCreateRequest(
+        condition_hash=packet.condition_hash,
+        compiled_prompt=packet.compiled_prompt,
+        source_map=packet.source_map,
+        platform=ManualVendorPlatform.GENERIC_WEB,
+    )
+    with get_session() as session:
+        manual_job = create_manual_job(session, manual_request, request_id="cli-manual-audit-demo")
+        manual_job = complete_manual_job(
+            session,
+            manual_job,
+            CompleteManualJobRequest(
+                result_video_uri="file:///tmp/mock_video.mp4",
+                user_notes="Manual audit demo completed with a local mock file.",
+            ),
+        )
+        manual_response = manual_job_to_response(manual_job)
+
+        audit_request = ManualAuditCreateRequest(
+            manual_job_id=manual_job.id,
+            bad_prompt_fragment_ref="frag_001",
+            failure_type="window_flipping_bug",
+            notes="窗户被生成成向外翻转。",
+        )
+        audit = build_rfs_audit_from_manual_request(audit_request)
+        record = normalize_rfs_failure(audit, packet)
+        failure = save_failure_record(
+            session,
+            record,
+            audit,
+            condition_hash=packet.condition_hash,
+            ruleset_fingerprint=packet.ruleset_fingerprint,
+            request_id="cli-manual-audit-demo",
+        )
+        manual_audit = save_manual_audit(
+            session,
+            request_id="cli-manual-audit-demo",
+            manual_job_id=manual_job.id,
+            render_job_id=None,
+            condition_hash=packet.condition_hash,
+            bad_prompt_fragment_ref="frag_001",
+            raw_failure_type=audit_request.failure_type,
+            failure_signature=record.signature,
+            failure_category=record.category,
+            recovery_policy=record.recovery_policy,
+            suggested_positive_lock=record.suggested_positive_lock,
+            notes=audit_request.notes,
+            rfs_scores=audit.details["rfs_scores"],
+        )
+
+    patch = build_patch_packet(record)
+
+    print("manual_job:")
+    print(json.dumps(manual_response.model_dump(mode="json"), ensure_ascii=False, indent=2))
+    print("\nmanual_audit:")
+    print(
+        json.dumps(
+            {
+                "audit_id": manual_audit.id,
+                "failure_record_id": failure.id,
+                "failure_signature": record.raw_signature,
+                "normalized_failure_signature": record.signature,
+                "failure_category": record.category,
+                "recovery_policy": record.recovery_policy,
+                "suggested_positive_lock": record.suggested_positive_lock,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    print("\npatch_packet:")
+    print(json.dumps(patch.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -241,6 +333,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         choices=[
             "demo-sliding-window",
             "init-db",
+            "manual-audit-demo",
             "manual-demo",
             "mock-render-demo",
             "recent-failures",
@@ -255,6 +348,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         demo_sliding_window()
     elif args.command == "init-db":
         init_database()
+    elif args.command == "manual-audit-demo":
+        manual_audit_demo()
     elif args.command == "manual-demo":
         manual_demo()
     elif args.command == "mock-render-demo":

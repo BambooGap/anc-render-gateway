@@ -24,6 +24,12 @@ _SIGNATURES: dict[str, NormalizedFailureSignature] = {
     "hand_not_touching_panel": NormalizedFailureSignature(
         category="contact_failure", signature="hand_panel_misalignment"
     ),
+    "extra_limb_generated": NormalizedFailureSignature(
+        category="identity_drift", signature="extra_limb_generated"
+    ),
+    "visual_anchor_ignored": NormalizedFailureSignature(
+        category="spatial_drift", signature="visual_anchor_ignored"
+    ),
 }
 
 

@@ -12,6 +12,6 @@ def test_version_endpoint_returns_service_metadata() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["service"] == "anc-render-gateway"
-    assert payload["phase"] == "5B-Manual"
+    assert payload["phase"] == "5C"
     assert payload["compiler_version"]
     assert payload["ruleset_fingerprint"]

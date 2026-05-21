@@ -15,6 +15,7 @@ from anc_gateway.storage.models import (
     CompileJobModel,
     FailureRecordModel,
     GatewayTransactionModel,
+    ManualAuditModel,
     PatchRecordModel,
     PromptSourceMapRecordModel,
 )
@@ -160,5 +161,49 @@ def list_recent_failures(session: Session, limit: int = 20) -> list[FailureRecor
             select(FailureRecordModel)
             .order_by(FailureRecordModel.created_at.desc())
             .limit(bounded_limit)
+        )
+    )
+
+
+def save_manual_audit(
+    session: Session,
+    *,
+    request_id: str | None,
+    manual_job_id: str | None,
+    render_job_id: str | None,
+    condition_hash: str | None,
+    bad_prompt_fragment_ref: str,
+    raw_failure_type: str,
+    failure_signature: str,
+    failure_category: str,
+    recovery_policy: str | None,
+    suggested_positive_lock: str | None,
+    notes: str | None,
+    rfs_scores: dict[str, object],
+) -> ManualAuditModel:
+    model = ManualAuditModel(
+        request_id=request_id,
+        manual_job_id=manual_job_id,
+        render_job_id=render_job_id,
+        condition_hash=condition_hash,
+        bad_prompt_fragment_ref=bad_prompt_fragment_ref,
+        raw_failure_type=raw_failure_type,
+        failure_signature=failure_signature,
+        failure_category=failure_category,
+        recovery_policy=recovery_policy,
+        suggested_positive_lock=suggested_positive_lock,
+        notes=notes,
+        rfs_scores_json=dumps_json(rfs_scores),
+    )
+    session.add(model)
+    session.flush()
+    return model
+
+
+def list_recent_manual_audits(session: Session, limit: int = 20) -> list[ManualAuditModel]:
+    bounded_limit = max(1, min(limit, 100))
+    return list(
+        session.scalars(
+            select(ManualAuditModel).order_by(ManualAuditModel.created_at.desc()).limit(bounded_limit)
         )
     )

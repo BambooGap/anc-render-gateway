@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "5B-Manual",
+  "phase": "5C",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -385,6 +385,60 @@ python -m anc_gateway.cli manual-demo
 ```
 
 完成 manual job 后，可以用回填的视频路径作为审计对象的人工记录，继续通过 `/audit` 归因和 `/recover` 生成修复补丁。后续如果获得正式 API，再实现真实 Vendor Adapter，而不是用自动化绕过网页端限制。
+
+## Phase 5C Manual RFS Audit Workflow
+
+Manual RFS Audit Workflow 用于没有真实 VLM 审计 API 的阶段。用户不需要手写完整 `RFSAuditResult`，只需要选择错误类型、错误 fragment 和备注，系统会自动生成标准审计结果，复用现有 failure normalizer，并保存 `ManualAudit` 和 `FailureRecord`。
+
+提交 manual audit：
+
+```bash
+curl -X POST http://127.0.0.1:8000/manual-audits \
+  -H "Content-Type: application/json" \
+  -d '{
+    "manual_job_id": "manual-job-id",
+    "bad_prompt_fragment_ref": "frag_001",
+    "failure_type": "window_flipping_bug",
+    "notes": "窗户被生成成向外翻转"
+  }'
+```
+
+支持的 `failure_type`：
+
+- `window_flipping_bug`
+- `hand_not_touching_panel`
+- `extra_limb_generated`
+- `visual_anchor_ignored`
+- `custom`
+
+`custom` 需要填写 `notes`。如果不传 `rfs_scores`，系统会使用默认人工审计分数：
+
+```json
+{
+  "overall": 0.5,
+  "manual_review": 1.0
+}
+```
+
+查看最近 manual audits：
+
+```bash
+curl "http://127.0.0.1:8000/manual-audits/recent?limit=20"
+```
+
+从 manual audit 进入 recover：
+
+1. `POST /manual-audits` 返回 `recovery_policy`、`suggested_positive_lock` 和 `failure_record_id`
+2. 使用同一响应中的 failure 信息构造 `FailureCacheRecord`
+3. 调用 `POST /recover`
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli manual-audit-demo
+```
+
+后续接入真实 VLM Auditor 时，可以替换 manual audit 的创建来源，但保留当前 `RFSAuditResult -> FailureRecord -> PatchPacket` 的主链路。
 
 ## 当前限制
 

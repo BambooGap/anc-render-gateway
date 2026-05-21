@@ -167,3 +167,31 @@ class ManualJobModel(Base):
         default=_now,
         onupdate=_now,
     )
+
+
+class ManualAuditModel(TimestampMixin, Base):
+    __tablename__ = "manual_audits"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    manual_job_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("manual_jobs.id"),
+        nullable=True,
+        index=True,
+    )
+    render_job_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("render_jobs.id"),
+        nullable=True,
+        index=True,
+    )
+    condition_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    bad_prompt_fragment_ref: Mapped[str] = mapped_column(String(128))
+    raw_failure_type: Mapped[str] = mapped_column(String(128))
+    failure_signature: Mapped[str] = mapped_column(String(128), index=True)
+    failure_category: Mapped[str] = mapped_column(String(128), index=True)
+    recovery_policy: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    suggested_positive_lock: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rfs_scores_json: Mapped[str] = mapped_column(Text)

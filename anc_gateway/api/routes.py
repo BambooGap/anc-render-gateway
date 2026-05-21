@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Request
+from sqlalchemy.orm import Session
 
+from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
+from anc_gateway.audit.schemas import ManualAuditCreateRequest, ManualAuditResponse
 from anc_gateway.api.models import AuditRequest, CompileRequest, HealthResponse, RecoverRequest
 from anc_gateway.api.models import VersionResponse
 from anc_gateway.api.request_context import get_request_id
 from anc_gateway.core.compiler import compile_render_packet
-from anc_gateway.core.schemas import CompiledRenderPacket, FailureCacheRecord, PatchPacket
+from anc_gateway.core.schemas import (
+    CompiledRenderPacket,
+    FailureCacheRecord,
+    PatchPacket,
+    PromptSourceMap,
+)
 from anc_gateway.core.schemas import RenderContract
 from anc_gateway.manual.job_manager import (
     complete_manual_job,
@@ -41,10 +50,13 @@ from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import get_session
 from anc_gateway.storage.repositories import (
+    get_compile_job_by_condition_hash,
     get_or_create_gateway_transaction,
+    list_recent_manual_audits,
     list_recent_failures,
     save_compile_job,
     save_failure_record,
+    save_manual_audit,
     save_patch_record,
 )
 from anc_gateway.vendors.capabilities import VendorCapability, get_vendor_capability
@@ -54,7 +66,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "5B-Manual"
+SERVICE_PHASE = "5C"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -291,3 +303,142 @@ def fail_manual_job_endpoint(
         return manual_job_to_response(
             fail_manual_job(session, job, user_notes=payload.user_notes if payload else None)
         )
+
+
+@router.post("/manual-audits", response_model=ManualAuditResponse)
+def create_manual_audit_endpoint(
+    request: Request,
+    payload: ManualAuditCreateRequest,
+) -> ManualAuditResponse:
+    with get_session() as session:
+        packet = _resolve_packet_for_manual_audit(session, payload)
+        audit = build_rfs_audit_from_manual_request(payload)
+        record = normalize_rfs_failure(audit, packet)
+        failure = save_failure_record(
+            session,
+            record,
+            audit,
+            condition_hash=packet.condition_hash,
+            ruleset_fingerprint=packet.ruleset_fingerprint,
+            request_id=get_request_id(request),
+        )
+        rfs_scores = audit.details.get("rfs_scores", {})
+        manual_audit = save_manual_audit(
+            session,
+            request_id=get_request_id(request),
+            manual_job_id=payload.manual_job_id,
+            render_job_id=payload.render_job_id,
+            condition_hash=packet.condition_hash,
+            bad_prompt_fragment_ref=payload.bad_prompt_fragment_ref,
+            raw_failure_type=payload.failure_type,
+            failure_signature=record.signature,
+            failure_category=record.category,
+            recovery_policy=record.recovery_policy,
+            suggested_positive_lock=record.suggested_positive_lock,
+            notes=payload.notes,
+            rfs_scores=rfs_scores if isinstance(rfs_scores, dict) else {},
+        )
+        return ManualAuditResponse(
+            audit_id=manual_audit.id,
+            passed=False,
+            failure_signature=record.raw_signature,
+            failure_category=record.category,
+            bad_prompt_fragment_ref=record.bad_prompt_fragment_ref,
+            normalized_failure_signature=record.signature,
+            recovery_policy=record.recovery_policy,
+            suggested_positive_lock=record.suggested_positive_lock,
+            notes=payload.notes,
+            created_at=manual_audit.created_at.isoformat() if manual_audit.created_at else None,
+            failure_record_id=failure.id,
+        )
+
+
+@router.get("/manual-audits/recent", response_model=list[ManualAuditResponse])
+def recent_manual_audits_endpoint(limit: int = 20) -> list[ManualAuditResponse]:
+    with get_session() as session:
+        return [
+            ManualAuditResponse(
+                audit_id=audit.id,
+                passed=False,
+                failure_signature=audit.raw_failure_type,
+                failure_category=audit.failure_category,
+                bad_prompt_fragment_ref=audit.bad_prompt_fragment_ref,
+                normalized_failure_signature=audit.failure_signature,
+                recovery_policy=audit.recovery_policy,
+                suggested_positive_lock=audit.suggested_positive_lock,
+                notes=audit.notes,
+                created_at=audit.created_at.isoformat() if audit.created_at else None,
+                failure_record_id=None,
+            )
+            for audit in list_recent_manual_audits(session, limit=limit)
+        ]
+
+
+def _resolve_packet_for_manual_audit(
+    session: Session,
+    payload: ManualAuditCreateRequest,
+) -> CompiledRenderPacket:
+    if payload.manual_job_id:
+        manual_job = get_manual_job(session, payload.manual_job_id)
+        if manual_job is None:
+            raise ValueError(f"Manual job not found: {payload.manual_job_id}")
+        return _packet_from_saved_fields(
+            state_id="manual_job",
+            shot_id=manual_job.id,
+            compiled_prompt=manual_job.compiled_prompt,
+            source_map_json=manual_job.source_map_json,
+            condition_hash=manual_job.condition_hash,
+            ruleset_fingerprint="manual",
+            compiler_version=DEFAULT_RENDER_CONTRACT.compiler_version,
+        )
+    if payload.render_job_id:
+        render_job = get_render_job(session, payload.render_job_id)
+        if render_job is None:
+            raise ValueError(f"Render job not found: {payload.render_job_id}")
+        return _packet_from_saved_fields(
+            state_id="render_job",
+            shot_id=render_job.id,
+            compiled_prompt=render_job.compiled_prompt,
+            source_map_json=render_job.source_map_json,
+            condition_hash=render_job.condition_hash,
+            ruleset_fingerprint="render",
+            compiler_version=DEFAULT_RENDER_CONTRACT.compiler_version,
+        )
+    if payload.condition_hash:
+        compile_job = get_compile_job_by_condition_hash(session, payload.condition_hash)
+        if compile_job is None:
+            raise ValueError(f"Compile job not found for condition_hash: {payload.condition_hash}")
+        state_payload = json.loads(compile_job.state_json)
+        render_contract_payload = json.loads(compile_job.render_contract_json)
+        return _packet_from_saved_fields(
+            state_id=str(state_payload.get("id", "unknown")),
+            shot_id=str(render_contract_payload.get("shot_id", "unknown")),
+            compiled_prompt=compile_job.compiled_prompt,
+            source_map_json=compile_job.source_map_json,
+            condition_hash=compile_job.condition_hash,
+            ruleset_fingerprint=compile_job.ruleset_fingerprint,
+            compiler_version=compile_job.compiler_version,
+        )
+    raise ValueError("manual_job_id, render_job_id, or condition_hash is required")
+
+
+def _packet_from_saved_fields(
+    *,
+    state_id: str,
+    shot_id: str,
+    compiled_prompt: str,
+    source_map_json: str,
+    condition_hash: str,
+    ruleset_fingerprint: str,
+    compiler_version: str,
+) -> CompiledRenderPacket:
+    source_map = PromptSourceMap.model_validate(json.loads(source_map_json))
+    return CompiledRenderPacket(
+        state_id=state_id,
+        shot_id=shot_id,
+        compiled_prompt=compiled_prompt,
+        source_map=source_map,
+        condition_hash=condition_hash,
+        ruleset_fingerprint=ruleset_fingerprint,
+        compiler_version=compiler_version,
+    )
