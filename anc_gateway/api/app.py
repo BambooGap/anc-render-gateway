@@ -10,17 +10,9 @@ from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from anc_gateway.api.models import ErrorResponse, error_payload, flatten_validation_errors
+from anc_gateway.api.request_context import REQUEST_ID_HEADER, get_request_id
 from anc_gateway.api.routes import router
 from anc_gateway.core.source_map import SourceMapAttributionError
-
-REQUEST_ID_HEADER = "X-Request-ID"
-
-
-def get_request_id(request: Request) -> str:
-    request_id = getattr(request.state, "request_id", None)
-    if isinstance(request_id, str) and request_id:
-        return request_id
-    return "unknown"
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):

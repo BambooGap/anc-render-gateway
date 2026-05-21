@@ -8,6 +8,8 @@ from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import RFSAuditResult, RenderContract, SceneObject, StateT
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
+from anc_gateway.storage.database import create_engine_from_url, get_database_url, get_session, init_db
+from anc_gateway.storage.repositories import list_recent_failures
 
 
 def demo_sliding_window() -> None:
@@ -50,13 +52,48 @@ def serve() -> None:
     uvicorn.run("anc_gateway.api.app:app", host="127.0.0.1", port=8000, reload=True)
 
 
+def init_database() -> None:
+    database_url = get_database_url()
+    engine = create_engine_from_url(database_url)
+    init_db(engine)
+    print(f"Initialized database: {database_url}")
+
+
+def print_recent_failures(limit: int = 20) -> None:
+    with get_session() as session:
+        records = list_recent_failures(session, limit=limit)
+        print(
+            json.dumps(
+                [
+                    {
+                        "failure_signature": record.failure_signature,
+                        "failure_category": record.failure_category,
+                        "bad_prompt_fragment": record.bad_prompt_fragment,
+                        "recovery_policy": record.recovery_policy,
+                        "created_at": record.created_at.isoformat()
+                        if record.created_at
+                        else None,
+                    }
+                    for record in records
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
-    parser.add_argument("command", choices=["demo-sliding-window", "serve"])
+    parser.add_argument("command", choices=["demo-sliding-window", "init-db", "recent-failures", "serve"])
+    parser.add_argument("--limit", type=int, default=20)
     args = parser.parse_args(argv)
 
     if args.command == "demo-sliding-window":
         demo_sliding_window()
+    elif args.command == "init-db":
+        init_database()
+    elif args.command == "recent-failures":
+        print_recent_failures(limit=args.limit)
     elif args.command == "serve":
         serve()
 

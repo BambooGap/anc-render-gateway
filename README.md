@@ -153,6 +153,50 @@ curl http://127.0.0.1:8000/version
 - Pydantic / FastAPI 请求校验错误
 - 未知异常
 
+## Phase 3 轻量持久化
+
+Phase 3 使用 SQLite + SQLAlchemy 2.x 保存 `/compile`、`/audit`、`/recover` 的结果，让一次性 API 调用变成可追踪的 Gateway Transaction 数据。
+
+初始化数据库：
+
+```bash
+python -m anc_gateway.cli init-db
+```
+
+默认数据库路径：
+
+```text
+.anc_gateway/anc_gateway.db
+```
+
+通过环境变量覆盖数据库地址：
+
+```bash
+export ANC_GATEWAY_DB_URL="sqlite:////tmp/anc_gateway.db"
+python -m anc_gateway.cli init-db
+```
+
+查看最近失败记录：
+
+```bash
+python -m anc_gateway.cli recent-failures
+python -m anc_gateway.cli recent-failures --limit 10
+```
+
+也可以通过 API 查看：
+
+```bash
+curl "http://127.0.0.1:8000/storage/recent-failures?limit=20"
+```
+
+当前持久化内容包括：
+
+- `CompileJob`: `/compile` 的输入、输出、condition hash、source map
+- `PromptSourceMapRecord`: 每个 fragment 的原文、改写文本、命中规则
+- `FailureRecord`: `/audit` 归因后的 failure signature、bad fragment、recovery policy
+- `PatchRecord`: `/recover` 输出的 patch packet
+- `GatewayTransaction`: 后续串联 compile -> audit -> recover 的事务骨架
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译
