@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ANC Render Gateway Console</title>
+    <link rel="stylesheet" href="/console/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>ANC Render Gateway Console</h1>
+        <p>Manual vendor and manual RFS workflow</p>
+      </div>
+      <div class="request-id">request_id: <code id="requestId"></code></div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Compile</h2>
+        <label for="rawPrompt">raw_prompt</label>
+        <textarea id="rawPrompt" rows="5">她轻轻推开了推拉窗，风吹进房间。</textarea>
+        <label for="platform">platform</label>
+        <select id="platform">
+          <option value="generic_web">generic_web</option>
+          <option value="jimeng_web">jimeng_web</option>
+          <option value="gemini_flow">gemini_flow</option>
+        </select>
+        <button id="compileBtn">Compile</button>
+        <div class="output-title">
+          <span>compiled_prompt</span>
+          <button class="small" data-copy-target="compiledPrompt">Copy</button>
+        </div>
+        <pre id="compiledPrompt"></pre>
+        <div class="output-title"><span>compile packet</span></div>
+        <pre id="compileOutput"></pre>
+      </section>
+
+      <section class="panel">
+        <h2>Manual Job</h2>
+        <button id="createManualJobBtn">Create Manual Job</button>
+        <div class="output-title">
+          <span>copy_instructions</span>
+          <button class="small" data-copy-target="copyInstructions">Copy</button>
+        </div>
+        <pre id="copyInstructions"></pre>
+        <pre id="manualJobOutput"></pre>
+      </section>
+
+      <section class="panel">
+        <h2>Complete Manual Job</h2>
+        <label for="resultVideoUri">result_video_uri</label>
+        <input id="resultVideoUri" value="file:///tmp/manual_video.mp4" />
+        <label for="userNotes">user_notes</label>
+        <textarea id="userNotes" rows="3"></textarea>
+        <button id="completeManualJobBtn">Complete Manual Job</button>
+        <pre id="completeManualJobOutput"></pre>
+      </section>
+
+      <section class="panel">
+        <h2>Manual Audit</h2>
+        <label for="failureType">failure_type</label>
+        <select id="failureType">
+          <option value="window_flipping_bug">window_flipping_bug</option>
+          <option value="hand_not_touching_panel">hand_not_touching_panel</option>
+          <option value="extra_limb_generated">extra_limb_generated</option>
+          <option value="visual_anchor_ignored">visual_anchor_ignored</option>
+          <option value="custom">custom</option>
+        </select>
+        <label for="badPromptFragmentRef">bad_prompt_fragment_ref</label>
+        <input id="badPromptFragmentRef" value="frag_001" />
+        <label for="auditNotes">notes</label>
+        <textarea id="auditNotes" rows="3"></textarea>
+        <button id="submitManualAuditBtn">Submit Manual Audit</button>
+        <pre id="manualAuditOutput"></pre>
+      </section>
+
+      <section class="panel">
+        <h2>Recover</h2>
+        <button id="buildPatchBtn">Build Patch Packet</button>
+        <pre id="recoverOutput"></pre>
+      </section>
+
+      <section class="panel wide">
+        <h2>Recent</h2>
+        <button id="refreshRecentBtn">Refresh Recent</button>
+        <div class="recent-grid">
+          <div>
+            <h3>Recent Manual Jobs</h3>
+            <pre id="recentManualJobs"></pre>
+          </div>
+          <div>
+            <h3>Recent Manual Audits</h3>
+            <pre id="recentManualAudits"></pre>
+          </div>
+          <div>
+            <h3>Recent Failures</h3>
+            <pre id="recentFailures"></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel wide error-panel">
+        <h2>Errors</h2>
+        <pre id="errorOutput"></pre>
+      </section>
+    </main>
+
+    <script src="/console/static/app.js"></script>
+  </body>
+</html>

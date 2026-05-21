@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "5C",
+  "phase": "6A",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -439,6 +439,42 @@ python -m anc_gateway.cli manual-audit-demo
 ```
 
 后续接入真实 VLM Auditor 时，可以替换 manual audit 的创建来源，但保留当前 `RFSAuditResult -> FailureRecord -> PatchPacket` 的主链路。
+
+## Phase 6A Manual Workflow Web Console
+
+Phase 6A 增加一个极简 Web Console，用 FastAPI 托管静态 HTML/CSS/JS，不引入 Vue、React、Next.js、npm 构建系统或外部 CDN。
+
+启动：
+
+```bash
+python -m anc_gateway.cli console
+```
+
+浏览器打开：
+
+```text
+http://127.0.0.1:8000/console
+```
+
+Web Console 支持完整人工流程：
+
+1. 输入 `raw_prompt` 并调用 `/compile`
+2. 使用 compiled prompt 创建 `/manual-jobs`
+3. 手动去网页端生成视频
+4. 回填 `result_video_uri`
+5. 提交 `/manual-audits`
+6. 使用 `failure_record_id` 调用 `/failures/{failure_record_id}/recover`
+7. 查看最近 manual jobs、manual audits、failures
+
+Console 行为：
+
+- 所有请求都带 `X-Request-ID`
+- 页面顶部显示当前 `request_id`
+- 错误以统一结构显示 `code/message/request_id`
+- JSON 输出使用 `pre`
+- `compiled_prompt` 和 `copy_instructions` 提供 Copy 按钮
+
+当前仍不包含真实视频 API、真实 VLM、登录系统、Redis、云存储或浏览器自动化。
 
 ## 当前限制
 

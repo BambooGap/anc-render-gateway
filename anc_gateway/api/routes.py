@@ -51,6 +51,7 @@ from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import get_session
 from anc_gateway.storage.repositories import (
     get_compile_job_by_condition_hash,
+    get_failure_record_by_id,
     get_or_create_gateway_transaction,
     list_recent_manual_audits,
     list_recent_failures,
@@ -66,7 +67,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "5C"
+SERVICE_PHASE = "6A"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -175,6 +176,38 @@ def recover_endpoint(request: Request, payload: RecoverRequest) -> PatchPacket:
     except Exception:
         logger.warning("Failed to persist patch record", exc_info=True)
     return patch
+
+
+@router.post("/failures/{failure_record_id}/recover", response_model=PatchPacket)
+def recover_failure_endpoint(request: Request, failure_record_id: str) -> PatchPacket:
+    with get_session() as session:
+        failure = get_failure_record_by_id(session, failure_record_id)
+        if failure is None:
+            raise ValueError(f"Failure record not found: {failure_record_id}")
+        record = FailureCacheRecord(
+            category=failure.failure_category,
+            signature=failure.failure_signature,
+            raw_signature=failure.failure_signature,
+            recovery_policy=failure.recovery_policy,
+            bad_prompt_fragment_ref=failure.bad_prompt_fragment_ref,
+            bad_prompt_fragment=failure.bad_prompt_fragment,
+            suggested_positive_lock=failure.suggested_positive_lock,
+            packet_condition_hash=failure.condition_hash or "",
+        )
+        patch = build_patch_packet(record)
+        transaction = get_or_create_gateway_transaction(
+            session,
+            request_id=get_request_id(request),
+            status="recovered",
+        )
+        save_patch_record(
+            session,
+            patch,
+            failure_record_id=failure.id,
+            request_id=get_request_id(request),
+            transaction_id=transaction.id,
+        )
+        return patch
 
 
 @router.get("/storage/recent-failures")

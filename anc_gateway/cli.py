@@ -65,6 +65,12 @@ def serve() -> None:
     uvicorn.run("anc_gateway.api.app:app", host="127.0.0.1", port=8000, reload=True)
 
 
+def console() -> None:
+    print("ANC Web Console:")
+    print("http://127.0.0.1:8000/console")
+    serve()
+
+
 def init_database() -> None:
     database_url = get_database_url()
     engine = create_engine_from_url(database_url)
@@ -338,6 +344,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "mock-render-demo",
             "recent-failures",
             "serve",
+            "console",
             "vendor-demo",
         ],
     )
@@ -346,6 +353,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if args.command == "demo-sliding-window":
         demo_sliding_window()
+    elif args.command == "console":
+        console()
     elif args.command == "init-db":
         init_database()
     elif args.command == "manual-audit-demo":

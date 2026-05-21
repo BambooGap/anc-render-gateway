@@ -165,6 +165,10 @@ def list_recent_failures(session: Session, limit: int = 20) -> list[FailureRecor
     )
 
 
+def get_failure_record_by_id(session: Session, failure_record_id: str) -> FailureRecordModel | None:
+    return session.get(FailureRecordModel, failure_record_id)
+
+
 def save_manual_audit(
     session: Session,
     *,

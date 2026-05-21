@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -45,7 +48,7 @@ def make_error_response(
 
 app = FastAPI(
     title="ANC Render Gateway",
-    version="0.5.0c-manual-audit",
+    version="0.6.0a-console",
     description="Minimal FastAPI service wrapper for the ANC parser kernel.",
     responses={
         400: {"model": ErrorResponse},
@@ -55,6 +58,14 @@ app = FastAPI(
 )
 app.add_middleware(RequestIDMiddleware)
 app.include_router(router)
+
+WEB_STATIC_DIR = Path(__file__).resolve().parents[1] / "web" / "static"
+app.mount("/console/static", StaticFiles(directory=WEB_STATIC_DIR), name="console-static")
+
+
+@app.get("/console", include_in_schema=False)
+def console() -> FileResponse:
+    return FileResponse(WEB_STATIC_DIR / "index.html")
 
 
 @app.exception_handler(SourceMapAttributionError)
