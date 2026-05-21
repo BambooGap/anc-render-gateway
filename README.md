@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "4",
+  "phase": "4.5",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -244,6 +244,41 @@ python -m anc_gateway.cli mock-render-demo
 ```
 
 后续真实视频 API 会以 vendor adapter 的形式替换或并列于 `mock_worker`，而不是改写 Parser Kernel 或 API contract。
+
+## Phase 4.5 Vendor Adapter 抽象层
+
+Phase 4.5 增加统一的 Vendor Adapter 抽象层，为后续接入 Veo、即梦、Kling、Runway、Seedance 等真实视频模型预留稳定边界。真实视频 API 不直接写进 route，route 只调用 registry 中注册的 adapter，这样厂商鉴权、提交、查询、取消、返回格式差异都被隔离在 adapter 内。
+
+当前只实现 `mock` vendor adapter：
+
+- `GET /vendors`
+- `GET /vendors/mock/capabilities`
+- `POST /render-jobs/{job_id}/submit-vendor`
+
+`submit-vendor` 会根据 RenderJob 的 `vendor` 找到 adapter，并把结果写回本地 RenderJob：
+
+- `external_job_id`
+- `status`
+- `video_uri`
+- vendor raw response metadata
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli vendor-demo
+```
+
+后续 Phase 5 会新增真实 vendor adapter，例如：
+
+```text
+veo_adapter
+jimeng_adapter
+kling_adapter
+runway_adapter
+seedance_adapter
+```
+
+这些 adapter 会替换或并列于当前 `mock_adapter`，不改 Parser Kernel，也不改既有 API contract。
 
 ## 当前限制
 

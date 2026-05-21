@@ -128,6 +128,7 @@ class RenderJobModel(Base):
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     condition_hash: Mapped[str] = mapped_column(String(64), index=True)
     render_hash: Mapped[str] = mapped_column(String(64), index=True)
+    external_job_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     vendor: Mapped[str] = mapped_column(String(128), default="mock", index=True)
     model: Mapped[str] = mapped_column(String(128), default="mock-video-v1")
     status: Mapped[str] = mapped_column(String(64), index=True)

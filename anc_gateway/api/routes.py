@@ -15,6 +15,7 @@ from anc_gateway.render.job_manager import (
     get_render_job,
     list_recent_render_jobs,
     render_job_to_response,
+    submit_render_job_to_vendor,
 )
 from anc_gateway.render.mock_worker import fail_mock_render, run_mock_render
 from anc_gateway.render.schemas import (
@@ -32,12 +33,14 @@ from anc_gateway.storage.repositories import (
     save_failure_record,
     save_patch_record,
 )
+from anc_gateway.vendors.capabilities import VendorCapability, get_vendor_capability
+from anc_gateway.vendors.registry import default_vendor_registry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "4"
+SERVICE_PHASE = "4.5"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -54,6 +57,18 @@ def version_endpoint() -> VersionResponse:
         compiler_version=DEFAULT_RENDER_CONTRACT.compiler_version,
         ruleset_fingerprint=DEFAULT_RENDER_CONTRACT.ruleset_fingerprint,
     )
+
+
+@router.get("/vendors", response_model=list[str])
+def vendors_endpoint() -> list[str]:
+    return default_vendor_registry.list_vendors()
+
+
+@router.get("/vendors/{vendor}/capabilities", response_model=VendorCapability)
+def vendor_capabilities_endpoint(vendor: str) -> VendorCapability:
+    if not default_vendor_registry.has(vendor):
+        raise ValueError(f"Unknown render vendor: {vendor}")
+    return get_vendor_capability(vendor)
 
 
 @router.post("/compile", response_model=CompiledRenderPacket)
@@ -202,3 +217,12 @@ def fail_mock_render_endpoint(
                 error_message=payload.error_message if payload else None,
             )
         )
+
+
+@router.post("/render-jobs/{job_id}/submit-vendor", response_model=RenderJobResponse)
+def submit_vendor_render_endpoint(job_id: str) -> RenderJobResponse:
+    with get_session() as session:
+        job = get_render_job(session, job_id)
+        if job is None:
+            raise ValueError(f"Render job not found: {job_id}")
+        return render_job_to_response(submit_render_job_to_vendor(session, job))
