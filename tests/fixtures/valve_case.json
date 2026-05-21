@@ -1,0 +1,18 @@
+{
+  "state": {
+    "id": "fixture_state_valve",
+    "shot_id": "fixture_shot_valve",
+    "objects": [
+      {
+        "id": "valve_01",
+        "name": "阀门",
+        "object_type": "valve",
+        "topology": {
+          "axis": "center"
+        }
+      }
+    ]
+  },
+  "prompt": "她打开阀门。",
+  "contains": ["圆形金属阀门", "中心轴", "旋转"]
+}

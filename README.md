@@ -29,3 +29,11 @@ python -m anc_gateway.cli demo-sliding-window
 ```
 
 demo 会编译“她轻轻推开了推拉窗，风吹进房间。”，输出包含“上下轨道、水平滑动”的 compiled prompt，模拟 `window_flipping_bug`，归一成 `object_rotation_error`，并生成 Level 2 修复补丁。
+
+## 当前限制
+
+- 当前只支持规则式中文 Prompt 编译
+- RFS 仍是 mock，不包含真实多模态审计
+- 未接真实视频 API
+- 未接视觉锚点
+- 未做多角色命名空间隔离

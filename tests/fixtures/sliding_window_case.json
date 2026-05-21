@@ -1,0 +1,19 @@
+{
+  "state": {
+    "id": "fixture_state_window",
+    "shot_id": "fixture_shot_window",
+    "objects": [
+      {
+        "id": "window_01",
+        "name": "推拉窗",
+        "object_type": "sliding_window",
+        "topology": {
+          "dof": "horizontal_slide",
+          "rail": "上下轨道"
+        }
+      }
+    ]
+  },
+  "prompt": "她轻轻推开了推拉窗，风吹进房间。",
+  "contains": ["窗扇", "上下轨道", "水平滑动"]
+}

@@ -1,0 +1,10 @@
+{
+  "state": {
+    "id": "fixture_state_negative",
+    "shot_id": "fixture_shot_negative",
+    "objects": []
+  },
+  "prompt": "不要让受伤的左臂恢复功能，不要穿模，不要切换场景。",
+  "contains": ["左臂持续保持无力下垂", "清晰可见的接触边界", "场景空间持续保持一致"],
+  "not_contains": ["不要", "不能", "避免"]
+}
