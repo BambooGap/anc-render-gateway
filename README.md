@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "4.5",
+  "phase": "5A",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -279,6 +279,46 @@ seedance_adapter
 ```
 
 这些 adapter 会替换或并列于当前 `mock_adapter`，不改 Parser Kernel，也不改既有 API contract。
+
+## Phase 5A HTTP Vendor Adapter 基础设施
+
+Phase 5A 增加真实 HTTP Vendor Adapter 的通用底座，但仍然不接任何具体真实视频厂商。它解决所有厂商 adapter 都会遇到的共同问题：
+
+- API Key 从环境变量读取
+- HTTP JSON 请求
+- timeout
+- HTTP 错误
+- JSON 解析错误
+- 厂商状态映射
+- 统一 submit/status/cancel 结果模型
+
+当前新增 `fake-http` vendor，用 `httpx.MockTransport` 模拟 HTTP 厂商，不访问真实网络：
+
+```bash
+export FAKE_HTTP_API_KEY="local-test-key"
+```
+
+创建 `vendor=fake-http` 的 RenderJob 后，可以提交到 fake-http adapter：
+
+```bash
+curl -X POST http://127.0.0.1:8000/render-jobs/{job_id}/submit-vendor
+```
+
+查看已注册 vendor：
+
+```bash
+curl http://127.0.0.1:8000/vendors
+curl http://127.0.0.1:8000/vendors/fake-http/capabilities
+```
+
+安全约束：
+
+- 不要把 API Key 写进代码
+- 不要把 API Key 写进 README
+- 不要提交 `.env`
+- 后续真实厂商的 key 必须通过环境变量读取，例如 `JIMENG_API_KEY`、`KLING_API_KEY`
+
+当前仍未接真实视频厂商。Phase 5B 才会选择一个真实平台实现具体 adapter。
 
 ## 当前限制
 

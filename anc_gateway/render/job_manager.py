@@ -12,6 +12,7 @@ from anc_gateway.render.schemas import RenderJobCreateRequest, RenderJobResponse
 from anc_gateway.storage.models import RenderJobModel
 from anc_gateway.storage.serializers import dumps_json, source_map_to_json
 from anc_gateway.vendors.registry import VendorAdapterRegistry, default_vendor_registry
+from anc_gateway.vendors.status_mapping import map_vendor_status
 
 
 def create_render_job(
@@ -78,7 +79,7 @@ def submit_render_job_to_vendor(
     adapter = registry.get(job.vendor)
     result = adapter.submit_render_job(job)
     job.external_job_id = result.external_job_id
-    job.status = _vendor_status_to_render_status(result.status).value
+    job.status = map_vendor_status(result.status).value
     job.video_uri = result.video_uri
     job.error_message = None
     metadata = _load_metadata(job.metadata_json)
@@ -106,15 +107,6 @@ def render_job_to_response(job: RenderJobModel) -> RenderJobResponse:
 
 def _datetime_to_iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
-
-
-def _vendor_status_to_render_status(status: str) -> RenderJobStatus:
-    normalized = status.upper()
-    if normalized in RenderJobStatus.__members__:
-        return RenderJobStatus[normalized]
-    if normalized in {"QUEUED", "SUBMITTED"}:
-        return RenderJobStatus.PENDING
-    return RenderJobStatus.RUNNING
 
 
 def _load_metadata(metadata_json: str) -> dict[str, Any]:

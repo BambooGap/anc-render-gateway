@@ -40,7 +40,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "4.5"
+SERVICE_PHASE = "5A"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from anc_gateway.vendors.base import RenderVendorAdapter
+from anc_gateway.vendors.fake_http_adapter import FakeHTTPVendorAdapter
 from anc_gateway.vendors.mock_adapter import MockVendorAdapter
 
 
@@ -26,6 +27,7 @@ class VendorAdapterRegistry:
 
 def create_default_registry() -> VendorAdapterRegistry:
     registry = VendorAdapterRegistry()
+    registry.register("fake-http", FakeHTTPVendorAdapter())
     registry.register("mock", MockVendorAdapter())
     return registry
 

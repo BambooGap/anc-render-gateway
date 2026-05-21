@@ -22,8 +22,12 @@ def test_mock_capability_supports_text_to_video() -> None:
 def test_vendors_api_returns_mock_and_capability() -> None:
     vendors_response = client.get("/vendors")
     capability_response = client.get("/vendors/mock/capabilities")
+    fake_capability_response = client.get("/vendors/fake-http/capabilities")
 
     assert vendors_response.status_code == 200
     assert "mock" in vendors_response.json()
+    assert "fake-http" in vendors_response.json()
     assert capability_response.status_code == 200
     assert capability_response.json()["text_to_video"] is True
+    assert fake_capability_response.status_code == 200
+    assert fake_capability_response.json()["vendor"] == "fake-http"

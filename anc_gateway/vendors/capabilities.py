@@ -35,8 +35,26 @@ MOCK_VENDOR_CAPABILITY = VendorCapability(
     supported_aspect_ratios=["16:9", "9:16", "1:1"],
 )
 
+FAKE_HTTP_VENDOR_CAPABILITY = VendorCapability(
+    vendor="fake-http",
+    model="fake-http-video-v1",
+    text_to_video=True,
+    image_to_video=True,
+    first_frame=True,
+    last_frame=False,
+    first_last_interpolation=False,
+    inpainting_mask=False,
+    negative_prompt=True,
+    seed=True,
+    motion_strength=True,
+    max_prompt_chars=4000,
+    supported_aspect_ratios=["16:9", "9:16", "1:1"],
+)
+
 
 def get_vendor_capability(vendor: str) -> VendorCapability:
     if vendor == "mock":
         return MOCK_VENDOR_CAPABILITY
+    if vendor == "fake-http":
+        return FAKE_HTTP_VENDOR_CAPABILITY
     raise ValueError(f"Unknown vendor capability: {vendor}")
