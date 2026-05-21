@@ -6,6 +6,9 @@ from collections.abc import Sequence
 
 from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import RFSAuditResult, RenderContract, SceneObject, StateT
+from anc_gateway.render.job_manager import create_render_job, render_job_to_response
+from anc_gateway.render.mock_worker import run_mock_render
+from anc_gateway.render.schemas import RenderJobCreateRequest
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import create_engine_from_url, get_database_url, get_session, init_db
@@ -82,9 +85,62 @@ def print_recent_failures(limit: int = 20) -> None:
         )
 
 
+def mock_render_demo() -> None:
+    state = StateT(
+        id="state_mock_render_001",
+        shot_id="shot_mock_render_001",
+        objects=[
+            SceneObject(
+                id="window_01",
+                name="推拉窗",
+                object_type="sliding_window",
+                topology={"dof": "horizontal_slide", "rail": "上下轨道"},
+            )
+        ],
+    )
+    contract = RenderContract(shot_id="shot_mock_render_001", ruleset_fingerprint="rc1")
+    packet = compile_render_packet(state, contract, "她轻轻推开了推拉窗，风吹进房间。")
+
+    render_request = RenderJobCreateRequest(
+        condition_hash=packet.condition_hash,
+        compiled_prompt=packet.compiled_prompt,
+        source_map=packet.source_map,
+    )
+    with get_session() as session:
+        render_job = create_render_job(session, render_request, request_id="cli-mock-render-demo")
+        render_job = run_mock_render(session, render_job)
+        render_response = render_job_to_response(render_job)
+
+    audit = RFSAuditResult(
+        ok=False,
+        raw_signature="window_flipping_bug",
+        bad_prompt_fragment_ref="frag_001",
+    )
+    record = normalize_rfs_failure(audit, packet)
+    patch = build_patch_packet(record)
+
+    print("compiled_render_packet:")
+    print(json.dumps(packet.model_dump(mode="json"), ensure_ascii=False, indent=2))
+    print("\nrender_job:")
+    print(json.dumps(render_response.model_dump(mode="json"), ensure_ascii=False, indent=2))
+    print("\nfailure_cache_record:")
+    print(json.dumps(record.model_dump(mode="json"), ensure_ascii=False, indent=2))
+    print("\npatch_packet:")
+    print(json.dumps(patch.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
-    parser.add_argument("command", choices=["demo-sliding-window", "init-db", "recent-failures", "serve"])
+    parser.add_argument(
+        "command",
+        choices=[
+            "demo-sliding-window",
+            "init-db",
+            "mock-render-demo",
+            "recent-failures",
+            "serve",
+        ],
+    )
     parser.add_argument("--limit", type=int, default=20)
     args = parser.parse_args(argv)
 
@@ -92,6 +148,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         demo_sliding_window()
     elif args.command == "init-db":
         init_database()
+    elif args.command == "mock-render-demo":
+        mock_render_demo()
     elif args.command == "recent-failures":
         print_recent_failures(limit=args.limit)
     elif args.command == "serve":

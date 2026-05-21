@@ -10,6 +10,18 @@ from anc_gateway.api.request_context import get_request_id
 from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import CompiledRenderPacket, FailureCacheRecord, PatchPacket
 from anc_gateway.core.schemas import RenderContract
+from anc_gateway.render.job_manager import (
+    create_render_job,
+    get_render_job,
+    list_recent_render_jobs,
+    render_job_to_response,
+)
+from anc_gateway.render.mock_worker import fail_mock_render, run_mock_render
+from anc_gateway.render.schemas import (
+    RenderJobCreateRequest,
+    RenderJobFailRequest,
+    RenderJobResponse,
+)
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import get_session
@@ -25,7 +37,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "2.5"
+SERVICE_PHASE = "4"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -138,3 +150,55 @@ def recent_failures_endpoint(limit: int = 20) -> list[dict[str, str | None]]:
             }
             for record in records
         ]
+
+
+@router.post("/render-jobs", response_model=RenderJobResponse)
+def create_render_job_endpoint(
+    request: Request,
+    payload: RenderJobCreateRequest,
+) -> RenderJobResponse:
+    with get_session() as session:
+        job = create_render_job(session, payload, request_id=get_request_id(request))
+        return render_job_to_response(job)
+
+
+@router.get("/render-jobs/recent", response_model=list[RenderJobResponse])
+def recent_render_jobs_endpoint(limit: int = 20) -> list[RenderJobResponse]:
+    with get_session() as session:
+        return [render_job_to_response(job) for job in list_recent_render_jobs(session, limit=limit)]
+
+
+@router.get("/render-jobs/{job_id}", response_model=RenderJobResponse)
+def get_render_job_endpoint(job_id: str) -> RenderJobResponse:
+    with get_session() as session:
+        job = get_render_job(session, job_id)
+        if job is None:
+            raise ValueError(f"Render job not found: {job_id}")
+        return render_job_to_response(job)
+
+
+@router.post("/render-jobs/{job_id}/run-mock", response_model=RenderJobResponse)
+def run_mock_render_endpoint(job_id: str) -> RenderJobResponse:
+    with get_session() as session:
+        job = get_render_job(session, job_id)
+        if job is None:
+            raise ValueError(f"Render job not found: {job_id}")
+        return render_job_to_response(run_mock_render(session, job))
+
+
+@router.post("/render-jobs/{job_id}/fail-mock", response_model=RenderJobResponse)
+def fail_mock_render_endpoint(
+    job_id: str,
+    payload: RenderJobFailRequest | None = None,
+) -> RenderJobResponse:
+    with get_session() as session:
+        job = get_render_job(session, job_id)
+        if job is None:
+            raise ValueError(f"Render job not found: {job_id}")
+        return render_job_to_response(
+            fail_mock_render(
+                session,
+                job,
+                error_message=payload.error_message if payload else None,
+            )
+        )

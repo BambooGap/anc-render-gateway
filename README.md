@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "2.5",
+  "phase": "4",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -196,6 +196,54 @@ curl "http://127.0.0.1:8000/storage/recent-failures?limit=20"
 - `FailureRecord`: `/audit` 归因后的 failure signature、bad fragment、recovery policy
 - `PatchRecord`: `/recover` 输出的 patch packet
 - `GatewayTransaction`: 后续串联 compile -> audit -> recover 的事务骨架
+
+## Phase 4 Mock Render Job System
+
+Phase 4 增加本地 mock 渲染任务系统，用来模拟未来接入即梦、Veo、Kling、Runway 等真实视频 API 时的异步生命周期。当前仍不接真实视频 API，`mock_worker` 只生成本地 mock 状态和 `mock://` 视频地址。
+
+创建 mock render job：
+
+```bash
+curl -X POST http://127.0.0.1:8000/render-jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "condition_hash": "use-condition-hash-from-compile",
+    "compiled_prompt": "use-compiled-prompt-from-compile",
+    "source_map": {"fragments": {}},
+    "vendor": "mock",
+    "model": "mock-video-v1",
+    "metadata": {"seed": 1}
+  }'
+```
+
+运行 mock render：
+
+```bash
+curl -X POST http://127.0.0.1:8000/render-jobs/{job_id}/run-mock
+```
+
+查询任务：
+
+```bash
+curl http://127.0.0.1:8000/render-jobs/{job_id}
+curl "http://127.0.0.1:8000/render-jobs/recent?limit=20"
+```
+
+模拟失败：
+
+```bash
+curl -X POST http://127.0.0.1:8000/render-jobs/{job_id}/fail-mock \
+  -H "Content-Type: application/json" \
+  -d '{"error_message": "mock timeout"}'
+```
+
+CLI 演示完整链路：
+
+```bash
+python -m anc_gateway.cli mock-render-demo
+```
+
+后续真实视频 API 会以 vendor adapter 的形式替换或并列于 `mock_worker`，而不是改写 Parser Kernel 或 API contract。
 
 ## 当前限制
 

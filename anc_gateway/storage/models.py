@@ -119,3 +119,27 @@ class PatchRecordModel(TimestampMixin, Base):
     target_fragment_ref: Mapped[str] = mapped_column(String(128))
     positive_lock: Mapped[str] = mapped_column(Text)
     patch_packet_json: Mapped[str] = mapped_column(Text)
+
+
+class RenderJobModel(Base):
+    __tablename__ = "render_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    condition_hash: Mapped[str] = mapped_column(String(64), index=True)
+    render_hash: Mapped[str] = mapped_column(String(64), index=True)
+    vendor: Mapped[str] = mapped_column(String(128), default="mock", index=True)
+    model: Mapped[str] = mapped_column(String(128), default="mock-video-v1")
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    compiled_prompt: Mapped[str] = mapped_column(Text)
+    source_map_json: Mapped[str] = mapped_column(Text)
+    visual_anchor_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now,
+        onupdate=_now,
+    )

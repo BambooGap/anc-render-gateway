@@ -45,7 +45,7 @@ def make_error_response(
 
 app = FastAPI(
     title="ANC Render Gateway",
-    version="0.2.5",
+    version="0.4.0",
     description="Minimal FastAPI service wrapper for the ANC parser kernel.",
     responses={
         400: {"model": ErrorResponse},
