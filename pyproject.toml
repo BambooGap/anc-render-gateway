@@ -8,10 +8,10 @@ version = "0.1.0"
 description = "Local ANC Render Gateway parser kernel."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2"]
+dependencies = ["fastapi", "pydantic>=2", "uvicorn"]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "mypy"]
+dev = ["httpx", "pytest", "ruff", "mypy"]
 
 [tool.setuptools.packages.find]
 include = ["anc_gateway*"]

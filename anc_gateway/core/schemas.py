@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class SceneObject(BaseModel):
@@ -50,7 +50,7 @@ class CompiledRenderPacket(BaseModel):
 
 
 class RFSAuditResult(BaseModel):
-    ok: bool = False
+    ok: bool = Field(default=False, validation_alias=AliasChoices("ok", "passed"))
     raw_signature: str
     bad_prompt_fragment_ref: str | None = None
     details: dict[str, Any] = Field(default_factory=dict)

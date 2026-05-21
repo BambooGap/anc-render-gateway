@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 
 from anc_gateway.core.compiler import compile_render_packet
 from anc_gateway.core.schemas import RFSAuditResult, RenderContract, SceneObject, StateT
@@ -43,13 +44,21 @@ def demo_sliding_window() -> None:
     print(json.dumps(patch.model_dump(), ensure_ascii=False, indent=2))
 
 
-def main() -> None:
+def serve() -> None:
+    import uvicorn
+
+    uvicorn.run("anc_gateway.api.app:app", host="127.0.0.1", port=8000, reload=True)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
-    parser.add_argument("command", choices=["demo-sliding-window"])
-    args = parser.parse_args()
+    parser.add_argument("command", choices=["demo-sliding-window", "serve"])
+    args = parser.parse_args(argv)
 
     if args.command == "demo-sliding-window":
         demo_sliding_window()
+    elif args.command == "serve":
+        serve()
 
 
 if __name__ == "__main__":
