@@ -96,6 +96,63 @@ curl -X POST http://127.0.0.1:8000/recover \
   }'
 ```
 
+## Phase 2.5 API 稳定性
+
+健康检查：
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+返回：
+
+```json
+{"status": "ok"}
+```
+
+版本信息：
+
+```bash
+curl http://127.0.0.1:8000/version
+```
+
+返回：
+
+```json
+{
+  "service": "anc-render-gateway",
+  "phase": "2.5",
+  "compiler_version": "anc-parser-kernel/0.1.0",
+  "ruleset_fingerprint": "rc1"
+}
+```
+
+请求追踪：
+
+- 如果请求 header 带 `X-Request-ID`，服务会沿用该值。
+- 如果请求 header 不带 `X-Request-ID`，服务会生成 uuid4。
+- 所有响应 header 都会返回 `X-Request-ID`。
+- 为了兼容 Phase 2 已有 API，`/compile`、`/audit`、`/recover` 的成功响应体不额外包 `data`。
+
+统一错误格式：
+
+```json
+{
+  "error": {
+    "code": "SOURCE_MAP_ATTRIBUTION_ERROR",
+    "message": "Unknown source map fragment: frag_999",
+    "request_id": "req-001"
+  }
+}
+```
+
+当前处理的 API 层错误包括：
+
+- `SourceMapAttributionError`
+- `ValueError`
+- Pydantic / FastAPI 请求校验错误
+- 未知异常
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译

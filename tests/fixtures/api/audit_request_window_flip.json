@@ -1,0 +1,36 @@
+{
+  "audit": {
+    "ok": false,
+    "raw_signature": "window_flipping_bug",
+    "bad_prompt_fragment_ref": "frag_001"
+  },
+  "packet": {
+    "state_id": "state_contract",
+    "shot_id": "shot_contract",
+    "compiled_prompt": "她右手握住窗扇右侧金属边框，窗扇始终保持垂直平面姿态，只沿上下轨道向右水平滑动，窗口左侧逐渐露出缺口，风吹进房间",
+    "source_map": {
+      "fragments": {
+        "frag_001": {
+          "fragment_ref": "frag_001",
+          "original_text": "她轻轻推开了推拉窗",
+          "compiled_text": "她右手握住窗扇右侧金属边框，窗扇始终保持垂直平面姿态，只沿上下轨道向右水平滑动，窗口左侧逐渐露出缺口",
+          "rules_applied": [
+            "ANC-LINT-001",
+            "ANC-LINT-002"
+          ],
+          "metadata": {}
+        },
+        "frag_002": {
+          "fragment_ref": "frag_002",
+          "original_text": "风吹进房间",
+          "compiled_text": "风吹进房间",
+          "rules_applied": [],
+          "metadata": {}
+        }
+      }
+    },
+    "condition_hash": "64cec7026e87e172e70dfcb76e055e1fa888011cb238a704352a32f84b027fe4",
+    "ruleset_fingerprint": "rc1",
+    "compiler_version": "anc-parser-kernel/0.1.0"
+  }
+}
