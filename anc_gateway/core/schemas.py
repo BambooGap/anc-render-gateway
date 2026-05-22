@@ -74,6 +74,7 @@ class PatchPacket(BaseModel):
     patch_prompt: str
     locked_regions: list[str]
     target_regions: list[str]
+    patch_context: dict[str, Any] = Field(default_factory=dict)
 
 
 FailureCategory = Literal[

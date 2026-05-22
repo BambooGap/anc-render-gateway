@@ -643,6 +643,47 @@ python -m anc_gateway.cli casebase-demo
 
 当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
 
+## Phase 6C.1 Context-Aware Patch Packet
+
+Phase 6C.1 让 Patch Packet 生成具备基础场景感知能力。之前 `build_patch_packet` 只根据 `failure_signature` 选模板，导致 `object_rotation_error` 对推拉窗和阀门生成相同的"窗扇"补丁。
+
+核心改变：
+
+- 新增 `anc_gateway/recovery/context.py`：`infer_object_context()` 根据 `failure_signature` + `bad_prompt_fragment` + `notes` 推断对象类型和运动模型
+- 改造 `anc_gateway/recovery/patch_packet.py`：`build_patch_packet()` 先推断上下文，再根据 `failure_signature + object_type + motion_model` 选择模板
+- `PatchPacket` 新增 `patch_context` 字段，记录推断的对象类型、运动模型、置信度和证据
+
+支持的对象类型：
+
+| object_type | 触发条件 | motion_model |
+|---|---|---|
+| sliding_window | 推拉窗/窗扇/上下轨道 | horizontal_track_slide |
+| valve | 阀门/中心轴/顺时针 | center_axis_rotation |
+| hinged_door | 门把手/铰链/门板 | hinge_rotation |
+| drawer | 抽屉/滑轨/拉出 | drawer_slide |
+| button_panel | 按钮/面板/按下 | surface_contact |
+| human_body | extra_limb_generated/多出肢体 | body_structure_lock |
+| visual_anchor | visual_anchor_ignored/场景跳变 | scene_continuity_lock |
+| generic_object | 兜底 | unknown |
+
+效果对比：
+
+| 场景 | 之前 | 之后 |
+|---|---|---|
+| 推拉窗 + object_rotation_error | 窗扇沿轨道滑动 ✅ | 窗扇沿轨道滑动 ✅ |
+| 阀门 + object_rotation_error | 窗扇沿轨道滑动 ❌ | 阀门围绕中心轴旋转 ✅ |
+| 门 + object_rotation_error | 窗扇沿轨道滑动 ❌ | 门板绕铰链轴旋转 ✅ |
+| 抽屉 + object_rotation_error | 窗扇沿轨道滑动 ❌ | 抽屉沿滑轨平移 ✅ |
+| extra_limb_generated | 泛化物理约束 ❌ | 固定肢体数量/五根手指 ✅ |
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli patch-context-demo
+```
+
+当前仍不使用 LLM、向量数据库、真实 VLM、真实视频 API。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译

@@ -19,7 +19,7 @@ from anc_gateway.attempts.schemas import AttemptCreateRequest, CaseCreateRequest
 from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
 from anc_gateway.audit.schemas import ManualAuditCreateRequest
 from anc_gateway.core.compiler import compile_render_packet
-from anc_gateway.core.schemas import RFSAuditResult, RenderContract, SceneObject, StateT
+from anc_gateway.core.schemas import FailureCacheRecord, PatchPacket, RFSAuditResult, RenderContract, SceneObject, StateT
 from anc_gateway.manual.job_manager import complete_manual_job, create_manual_job
 from anc_gateway.manual.job_manager import manual_job_to_response
 from anc_gateway.manual.schemas import (
@@ -44,6 +44,7 @@ from anc_gateway.casebase.search import search_casebase
 from anc_gateway.casebase.stats import get_failure_signature_stats
 from anc_gateway.casebase.recommendations import recommend_patches
 from anc_gateway.casebase.schemas import RecommendRequest
+from anc_gateway.recovery.context import infer_object_context
 
 
 def demo_sliding_window() -> None:
@@ -602,6 +603,80 @@ def casebase_demo() -> None:
             print(json.dumps(recommendations.model_dump(mode="json"), ensure_ascii=False, indent=2))
 
 
+def patch_context_demo() -> None:
+    scenarios = [
+        {
+            "name": "sliding_window",
+            "failure_signature": "object_rotation_error",
+            "bad_prompt_fragment": "她轻轻推开了推拉窗，风吹进房间。",
+        },
+        {
+            "name": "valve",
+            "failure_signature": "object_rotation_error",
+            "bad_prompt_fragment": "她顺时针旋转阀门，水流逐渐变小。",
+        },
+        {
+            "name": "hinged_door",
+            "failure_signature": "object_rotation_error",
+            "bad_prompt_fragment": "她握住门把手，将门板向外推开。",
+        },
+        {
+            "name": "drawer",
+            "failure_signature": "object_rotation_error",
+            "bad_prompt_fragment": "她握住抽屉把手，将抽屉从滑轨中拉出。",
+        },
+        {
+            "name": "button_panel",
+            "failure_signature": "hand_panel_misalignment",
+            "bad_prompt_fragment": "她的手指悬停在按钮面板上方，没有按下。",
+        },
+        {
+            "name": "extra_limb",
+            "failure_signature": "extra_limb_generated",
+            "bad_prompt_fragment": "她用三只手同时抓住了绳子。",
+        },
+        {
+            "name": "visual_anchor",
+            "failure_signature": "visual_anchor_ignored",
+            "bad_prompt_fragment": "红色的裙子被生成成了蓝色，参考图场景跳变。",
+        },
+    ]
+
+    patches: list[tuple[str, PatchPacket]] = []
+    for s in scenarios:
+        ctx = infer_object_context(
+            failure_signature=s["failure_signature"],
+            bad_prompt_fragment=s["bad_prompt_fragment"],
+        )
+        record = FailureCacheRecord(
+            category="topology_dof_violation",
+            signature=s["failure_signature"],
+            raw_signature=s["failure_signature"],
+            recovery_policy="LEVEL_2_NEGATIVE_MITIGATION",
+            bad_prompt_fragment_ref="frag_001",
+            bad_prompt_fragment=s["bad_prompt_fragment"],
+            suggested_positive_lock="",
+            packet_condition_hash="demo",
+        )
+        patch = build_patch_packet(record)
+        patches.append((s["name"], patch))
+
+        print(f"\n=== {s['name']} ===")
+        print(f"  object_type:  {ctx.object_type}")
+        print(f"  motion_model: {ctx.motion_model}")
+        print(f"  confidence:   {ctx.confidence}")
+        print(f"  patch_prompt: {patch.patch_prompt[:80]}...")
+        print(f"  positive_lock: {patch.positive_lock[:80]}...")
+
+    # Verify patches are not all identical
+    prompts = [p.patch_prompt for _, p in patches]
+    unique_prompts = len(set(prompts))
+    print("\n=== Summary ===")
+    print(f"  Scenarios: {len(patches)}")
+    print(f"  Unique patch_prompts: {unique_prompts}/{len(patches)}")
+    print(f"  All identical: {'YES - PROBLEM!' if unique_prompts == 1 else 'NO - GOOD'}")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -618,6 +693,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "attempt-loop-demo",
             "casebase-demo",
             "export-case-demo",
+            "patch-context-demo",
             "vendor-demo",
         ],
     )
@@ -634,6 +710,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         casebase_demo()
     elif args.command == "export-case-demo":
         export_case_demo()
+    elif args.command == "patch-context-demo":
+        patch_context_demo()
     elif args.command == "init-db":
         init_database()
     elif args.command == "manual-audit-demo":
