@@ -13,4 +13,5 @@ def test_export_case_demo_runs_and_prints_markdown() -> None:
     assert "# export-case-demo" in result.stdout
     assert "## Base Prompt" in result.stdout
     assert "### Attempt 1" in result.stdout
-    assert "- Patch Record ID:" in result.stdout
+    assert "#### Prompt" in result.stdout
+    assert "#### Compiled Prompt" in result.stdout

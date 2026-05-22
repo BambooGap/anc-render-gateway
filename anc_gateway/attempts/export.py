@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from anc_gateway.storage.models import AttemptModel, CaseModel
+from sqlalchemy.orm import Session
+
+from anc_gateway.storage.models import AttemptModel, CaseModel, FailureRecordModel, PatchRecordModel
 
 
 def build_case_timeline(attempts: list[AttemptModel]) -> list[dict[str, object]]:
@@ -23,7 +25,11 @@ def build_case_timeline(attempts: list[AttemptModel]) -> list[dict[str, object]]
     ]
 
 
-def export_case_markdown(case: CaseModel, attempts: list[AttemptModel]) -> str:
+def export_case_markdown(
+    case: CaseModel,
+    attempts: list[AttemptModel],
+    session: Session | None = None,
+) -> str:
     lines: list[str] = [
         f"# {case.title}",
         "",
@@ -40,21 +46,74 @@ def export_case_markdown(case: CaseModel, attempts: list[AttemptModel]) -> str:
                 f"### Attempt {attempt.attempt_index}",
                 "",
                 f"- Status: {attempt.status}",
-                f"- Raw Prompt: {attempt.raw_prompt}",
+                "",
+                "#### Prompt",
+                "",
+                "```text",
+                attempt.raw_prompt,
+                "```",
+                "",
             ]
         )
         if attempt.compiled_prompt:
-            lines.append(f"- Compiled Prompt: {attempt.compiled_prompt}")
+            lines.extend(
+                [
+                    "#### Compiled Prompt",
+                    "",
+                    "```text",
+                    attempt.compiled_prompt,
+                    "```",
+                    "",
+                ]
+            )
         if attempt.result_video_uri:
             lines.append(f"- Result Video URI: {attempt.result_video_uri}")
-        if attempt.failure_record_id:
-            lines.append(f"- Failure Record ID: {attempt.failure_record_id}")
-        if attempt.patch_record_id:
-            lines.append(f"- Patch Record ID: {attempt.patch_record_id}")
-        else:
-            lines.append("- Patch Record ID: None")
         if attempt.notes:
             lines.append(f"- Notes: {attempt.notes}")
+
+        if attempt.failure_record_id and session is not None:
+            failure_record = session.get(FailureRecordModel, attempt.failure_record_id)
+            if failure_record is not None:
+                lines.extend(
+                    [
+                        "",
+                        "#### Failure Record",
+                        "",
+                        f"- Failure Signature: {failure_record.failure_signature}",
+                        f"- Failure Category: {failure_record.failure_category}",
+                        f"- Bad Prompt Fragment Ref: {failure_record.bad_prompt_fragment_ref}",
+                        f"- Bad Prompt Fragment: {failure_record.bad_prompt_fragment}",
+                        f"- Recovery Policy: {failure_record.recovery_policy}",
+                        f"- Suggested Positive Lock: {failure_record.suggested_positive_lock}",
+                    ]
+                )
+
+        if attempt.patch_record_id and session is not None:
+            patch_record = session.get(PatchRecordModel, attempt.patch_record_id)
+            if patch_record is not None:
+                lines.extend(
+                    [
+                        "",
+                        "#### Patch Record",
+                        "",
+                        f"- Recovery Policy: {patch_record.recovery_policy}",
+                        f"- Target Fragment Ref: {patch_record.target_fragment_ref}",
+                        f"- Positive Lock: {patch_record.positive_lock}",
+                    ]
+                )
+        elif attempt.patch_prompt:
+            lines.extend(
+                [
+                    "",
+                    "#### Patch Prompt",
+                    "",
+                    "```text",
+                    attempt.patch_prompt,
+                    "```",
+                    "",
+                ]
+            )
+
         lines.append("")
 
     lines.extend(["## Lessons Learned", ""])

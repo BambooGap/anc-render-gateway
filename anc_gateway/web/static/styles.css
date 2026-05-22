@@ -222,6 +222,31 @@ pre {
   font-weight: 650;
 }
 
+.topbar-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.status-message {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.status-message.visible {
+  opacity: 1;
+}
+
+.recent-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 @media (max-width: 840px) {
   .layout,
   .recent-grid,

@@ -39,6 +39,9 @@ def test_case_export_markdown_contains_obsidian_ready_sections() -> None:
     assert "# Obsidian 复盘" in markdown
     assert "## Base Prompt" in markdown
     assert "### Attempt 1" in markdown
-    assert "- Raw Prompt: 她推开推拉窗。" in markdown
-    assert "- Patch Record ID: patch_export" in markdown
+    assert "#### Prompt" in markdown
+    assert "她推开推拉窗。" in markdown
+    assert "#### Compiled Prompt" in markdown
+    assert "她右手推开推拉窗。" in markdown
+    assert "窗扇只沿上下轨道水平滑动。" in markdown
     assert "## Lessons Learned" in markdown

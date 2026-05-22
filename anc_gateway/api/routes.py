@@ -206,7 +206,7 @@ def export_case_markdown_endpoint(case_id: str) -> Response:
         case = get_case(session, case_id)
         if case is None:
             raise ValueError(f"Case not found: {case_id}")
-        markdown = export_case_markdown(case, list_case_attempts(session, case_id))
+        markdown = export_case_markdown(case, list_case_attempts(session, case_id), session)
         return Response(content=markdown, media_type="text/markdown")
 
 

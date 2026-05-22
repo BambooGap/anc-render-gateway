@@ -12,7 +12,10 @@
         <h1>ANC Render Gateway Console</h1>
         <p>Manual vendor and manual RFS workflow</p>
       </div>
-      <div class="request-id">request_id: <code id="requestId"></code></div>
+      <div class="topbar-right">
+        <div class="request-id">request_id: <code id="requestId"></code></div>
+        <div id="statusMessage" class="status-message" aria-live="polite"></div>
+      </div>
     </header>
 
     <main class="layout">
@@ -119,8 +122,15 @@
 
       <section class="panel wide">
         <h2>Recent</h2>
-        <button id="refreshRecentBtn">Refresh Recent</button>
+        <div class="recent-actions">
+          <button id="refreshRecentBtn">Refresh Recent</button>
+          <button id="refreshCasesBtn" class="secondary">Refresh Cases</button>
+        </div>
         <div class="recent-grid">
+          <div>
+            <h3>Recent Cases</h3>
+            <pre id="recentCases"></pre>
+          </div>
           <div>
             <h3>Recent Manual Jobs</h3>
             <pre id="recentManualJobs"></pre>
@@ -129,6 +139,8 @@
             <h3>Recent Manual Audits</h3>
             <pre id="recentManualAudits"></pre>
           </div>
+        </div>
+        <div class="recent-grid">
           <div>
             <h3>Recent Failures</h3>
             <pre id="recentFailures"></pre>

@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "6A",
+  "phase": "6B",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -548,11 +548,45 @@ python -m anc_gateway.cli export-case-demo
 
 当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
 
+## Phase 6B.2 Post-Acceptance Usability Polish
+
+Phase 6B.2 修复 Console 交互刷新问题，并增强 Case Markdown Export，让导出的 Obsidian 文档包含完整 Patch Prompt / Positive Lock / Recovery Policy 信息。
+
+Console 自动刷新：
+
+- 所有主要操作成功后自动刷新相关区域（Recent Manual Jobs、Recent Manual Audits、Recent Failures、Recent Cases、Timeline、Attempts）
+- 新增统一刷新函数：`refreshRecentPanels()`、`refreshCurrentCase()`、`refreshTimeline()`、`refreshWorkspaceState()`
+- 页面顶部显示轻量状态提示（如 "Updated"、"Timeline refreshed"、"Case archived"）
+- 新增 Recent Cases 区域，支持查看和选择历史 Case
+
+Export Markdown 增强：
+
+- 每个 Attempt 如果有关联 Failure Record，导出完整的失败归因信息：
+  - Failure Signature
+  - Failure Category
+  - Bad Prompt Fragment Ref
+  - Bad Prompt Fragment
+  - Recovery Policy
+  - Suggested Positive Lock
+- 每个 Attempt 如果有关联 Patch Record，导出完整的修复补丁信息：
+  - Recovery Policy
+  - Target Fragment Ref
+  - Positive Lock
+- 如果某些字段不存在，自动跳过，不输出 null
+- Prompt 使用 code block 格式，便于 Obsidian 阅读
+
+README 修正：
+
+- `/version` 示例 phase 从 "6A" 更新为 "6B"
+- 当前限制中"未接数据库"改为"当前仅使用本地 SQLite，未接 PostgreSQL/Redis/云存储"
+
+当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译
 - RFS 仍是 mock，不包含真实多模态审计
 - 未接真实视频 API
-- 未接数据库、Redis 或云存储
+- 当前仅使用本地 SQLite，未接 PostgreSQL/Redis/云存储
 - 未接视觉锚点
 - 未做多角色命名空间隔离

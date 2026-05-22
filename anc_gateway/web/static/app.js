@@ -7,6 +7,7 @@ const state = {
   lastPatchPacket: null,
   case: null,
   currentAttempt: null,
+  statusMessage: "",
 };
 
 const el = (id) => document.getElementById(id);
@@ -83,6 +84,25 @@ function clearError() {
   el("errorOutput").textContent = "";
 }
 
+function showStatus(message) {
+  state.statusMessage = message;
+  const statusEl = el("statusMessage");
+  if (statusEl) {
+    statusEl.textContent = message;
+    statusEl.classList.add("visible");
+    window.setTimeout(() => {
+      if (statusEl.textContent === message) {
+        statusEl.classList.remove("visible");
+        window.setTimeout(() => {
+          if (statusEl.textContent === message) {
+            statusEl.textContent = "";
+          }
+        }, 300);
+      }
+    }, 2000);
+  }
+}
+
 async function apiFetch(path, options = {}) {
   clearError();
   const response = await fetch(path, {
@@ -149,6 +169,7 @@ async function compilePrompt() {
   showJson("compiledPrompt", state.packet.compiled_prompt);
   showJson("compileOutput", state.packet);
   renderFragmentQuickList(state.packet.source_map);
+  showStatus("Compiled");
 }
 
 async function createManualJob() {
@@ -174,7 +195,8 @@ async function createManualJob() {
     });
     await showAttemptWorkspace();
   }
-  await refreshRecent();
+  await refreshRecentPanels();
+  showStatus("Manual job created");
 }
 
 async function completeManualJob() {
@@ -200,7 +222,8 @@ async function completeManualJob() {
     });
     await showAttemptWorkspace();
   }
-  await refreshRecent();
+  await refreshRecentPanels();
+  showStatus("Manual job completed");
 }
 
 async function submitManualAudit() {
@@ -228,7 +251,8 @@ async function submitManualAudit() {
     });
     await showAttemptWorkspace();
   }
-  await refreshRecent();
+  await refreshRecentPanels();
+  showStatus("Manual audit submitted");
 }
 
 async function buildPatchPacket() {
@@ -248,6 +272,7 @@ async function buildPatchPacket() {
     });
     await showAttemptWorkspace();
   }
+  showStatus("Patch packet built");
 }
 
 async function createCase() {
@@ -264,6 +289,8 @@ async function createCase() {
   showJson("attemptOutput", "");
   await showAttemptList();
   await showTimeline();
+  await refreshRecentPanels();
+  showStatus("Case created");
 }
 
 async function saveCurrentAttempt() {
@@ -285,6 +312,8 @@ async function saveCurrentAttempt() {
     }),
   });
   await showAttemptWorkspace();
+  await refreshCurrentCase();
+  showStatus("Attempt saved");
 }
 
 async function createNextAttemptFromPatch() {
@@ -308,6 +337,8 @@ async function createNextAttemptFromPatch() {
   showJson("compileOutput", "");
   renderFragmentQuickList(null);
   await showAttemptWorkspace();
+  await refreshCurrentCase();
+  showStatus("Next attempt created");
 }
 
 async function acceptAttempt() {
@@ -324,6 +355,8 @@ async function acceptAttempt() {
     showJson("caseOutput", state.case);
   }
   await showAttemptWorkspace();
+  await refreshCurrentCase();
+  showStatus("Attempt accepted");
 }
 
 async function archiveCase() {
@@ -334,6 +367,8 @@ async function archiveCase() {
   state.case = await apiFetch(`/cases/${state.case.case_id}/archive`, { method: "POST" });
   showJson("caseOutput", state.case);
   await showAttemptWorkspace();
+  await refreshRecentPanels();
+  showStatus("Case archived");
 }
 
 async function exportMarkdown() {
@@ -346,6 +381,7 @@ async function exportMarkdown() {
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener");
   window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  showStatus("Markdown exported");
 }
 
 async function showAttemptWorkspace() {
@@ -383,6 +419,36 @@ async function refreshRecent() {
   showJson("recentFailures", failures);
 }
 
+async function refreshRecentPanels() {
+  await refreshRecent();
+  showStatus("Recent panels updated");
+}
+
+async function refreshCurrentCase() {
+  if (!state.case) {
+    return;
+  }
+  try {
+    state.case = await apiFetch(`/cases/${state.case.case_id}`);
+    showJson("caseOutput", state.case);
+  } catch {
+    // ignore if case not found
+  }
+}
+
+async function refreshTimeline() {
+  await showTimeline();
+  showStatus("Timeline refreshed");
+}
+
+async function refreshWorkspaceState() {
+  await Promise.all([
+    refreshCurrentCase(),
+    showAttemptWorkspace(),
+    refreshRecent(),
+  ]);
+}
+
 async function copyFromPre(targetId) {
   const text = el(targetId).textContent;
   if (text) {
@@ -413,6 +479,21 @@ async function copyPatchPrompt() {
   }, 1800);
 }
 
+async function loadRecentCases() {
+  const cases = await apiFetch("/cases/recent?limit=10");
+  showJson("recentCases", cases);
+}
+
+async function selectCase(caseId) {
+  state.case = await apiFetch(`/cases/${caseId}`);
+  state.currentAttempt = null;
+  showJson("caseOutput", state.case);
+  showJson("attemptOutput", "");
+  await showAttemptList();
+  await showTimeline();
+  showStatus("Case selected");
+}
+
 function bindEvents() {
   el("compileBtn").addEventListener("click", compilePrompt);
   el("createCaseBtn").addEventListener("click", createCase);
@@ -427,6 +508,7 @@ function bindEvents() {
   el("buildPatchBtn").addEventListener("click", buildPatchPacket);
   el("copyPatchPromptBtn").addEventListener("click", copyPatchPrompt);
   el("refreshRecentBtn").addEventListener("click", refreshRecent);
+  el("refreshCasesBtn").addEventListener("click", loadRecentCases);
   document.querySelectorAll("[data-copy-target]").forEach((button) => {
     button.addEventListener("click", () => copyFromPre(button.dataset.copyTarget));
   });
@@ -436,3 +518,4 @@ renderRequestId();
 renderFragmentQuickList(null);
 bindEvents();
 refreshRecent().catch(showError);
+loadRecentCases().catch(showError);
