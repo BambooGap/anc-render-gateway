@@ -4,6 +4,16 @@ import argparse
 import json
 from collections.abc import Sequence
 
+from anc_gateway.attempts.job_manager import (
+    attempt_to_response,
+    case_to_response,
+    create_attempt,
+    create_case,
+    link_attempt_manual_audit,
+    link_attempt_manual_job,
+    link_attempt_patch,
+)
+from anc_gateway.attempts.schemas import AttemptCreateRequest, CaseCreateRequest
 from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
 from anc_gateway.audit.schemas import ManualAuditCreateRequest
 from anc_gateway.core.compiler import compile_render_packet
@@ -332,6 +342,119 @@ def manual_audit_demo() -> None:
     print(json.dumps(patch.model_dump(mode="json"), ensure_ascii=False, indent=2))
 
 
+def attempt_loop_demo() -> None:
+    state = StateT(
+        id="state_attempt_loop_demo_001",
+        shot_id="shot_attempt_loop_demo_001",
+        objects=[
+            SceneObject(
+                id="window_01",
+                name="推拉窗",
+                object_type="sliding_window",
+                topology={"dof": "horizontal_slide", "rail": "上下轨道"},
+            )
+        ],
+    )
+    contract = RenderContract(shot_id="shot_attempt_loop_demo_001", ruleset_fingerprint="rc1")
+    raw_prompt = "她轻轻推开了推拉窗，冷白色应急灯照进房间，窗外有细小尘埃缓慢漂浮。"
+    packet = compile_render_packet(state, contract, raw_prompt)
+
+    with get_session() as session:
+        case = create_case(
+            session,
+            CaseCreateRequest(raw_prompt=raw_prompt, title="sliding-window-attempt-loop"),
+            request_id="cli-attempt-loop-demo",
+        )
+        attempt_1 = create_attempt(
+            session,
+            case,
+            AttemptCreateRequest(
+                raw_prompt=raw_prompt,
+                compiled_prompt=packet.compiled_prompt,
+                condition_hash=packet.condition_hash,
+                source_map=packet.source_map,
+            ),
+            request_id="cli-attempt-loop-demo",
+        )
+
+        manual_job = create_manual_job(
+            session,
+            ManualJobCreateRequest(
+                condition_hash=packet.condition_hash,
+                compiled_prompt=packet.compiled_prompt,
+                source_map=packet.source_map,
+                platform=ManualVendorPlatform.GENERIC_WEB,
+            ),
+            request_id="cli-attempt-loop-demo",
+        )
+        manual_job = complete_manual_job(
+            session,
+            manual_job,
+            CompleteManualJobRequest(result_video_uri="file:///tmp/attempt_loop_demo.mp4"),
+        )
+        attempt_1 = link_attempt_manual_job(
+            session,
+            attempt_1,
+            manual_job_id=manual_job.id,
+            result_video_uri=manual_job.result_video_uri,
+        )
+
+        audit_request = ManualAuditCreateRequest(
+            manual_job_id=manual_job.id,
+            bad_prompt_fragment_ref="frag_001",
+            failure_type="window_flipping_bug",
+        )
+        audit = build_rfs_audit_from_manual_request(audit_request)
+        record = normalize_rfs_failure(audit, packet)
+        failure = save_failure_record(
+            session,
+            record,
+            audit,
+            condition_hash=packet.condition_hash,
+            ruleset_fingerprint=packet.ruleset_fingerprint,
+            request_id="cli-attempt-loop-demo",
+        )
+        manual_audit = save_manual_audit(
+            session,
+            request_id="cli-attempt-loop-demo",
+            manual_job_id=manual_job.id,
+            render_job_id=None,
+            condition_hash=packet.condition_hash,
+            bad_prompt_fragment_ref="frag_001",
+            raw_failure_type=audit_request.failure_type,
+            failure_signature=record.signature,
+            failure_category=record.category,
+            recovery_policy=record.recovery_policy,
+            suggested_positive_lock=record.suggested_positive_lock,
+            notes=audit_request.notes,
+            rfs_scores=audit.details["rfs_scores"],
+        )
+        attempt_1 = link_attempt_manual_audit(
+            session,
+            attempt_1,
+            manual_audit_id=manual_audit.id,
+            failure_record_id=failure.id,
+        )
+
+        patch = build_patch_packet(record)
+        attempt_1 = link_attempt_patch(session, attempt_1, patch_prompt=patch.patch_prompt)
+        attempt_2 = create_attempt(
+            session,
+            case,
+            AttemptCreateRequest(previous_attempt_id=attempt_1.id, patch_packet=patch),
+            request_id="cli-attempt-loop-demo",
+        )
+
+        print("case:")
+        print(json.dumps(case_to_response(case).model_dump(mode="json"), ensure_ascii=False, indent=2))
+        print("\nattempt_1:")
+        print(json.dumps(attempt_to_response(attempt_1).model_dump(mode="json"), ensure_ascii=False, indent=2))
+        print("\npatch_packet:")
+        print(json.dumps(patch.model_dump(mode="json"), ensure_ascii=False, indent=2))
+        print("\nattempt_2:")
+        print(json.dumps(attempt_to_response(attempt_2).model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -345,6 +468,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "recent-failures",
             "serve",
             "console",
+            "attempt-loop-demo",
             "vendor-demo",
         ],
     )
@@ -355,6 +479,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         demo_sliding_window()
     elif args.command == "console":
         console()
+    elif args.command == "attempt-loop-demo":
+        attempt_loop_demo()
     elif args.command == "init-db":
         init_database()
     elif args.command == "manual-audit-demo":

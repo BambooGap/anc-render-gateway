@@ -16,6 +16,29 @@
     </header>
 
     <main class="layout">
+      <section class="panel wide">
+        <h2>Workspace</h2>
+        <label for="caseTitle">case_title</label>
+        <input id="caseTitle" placeholder="Optional case title" />
+        <button id="createCaseBtn">Create Case</button>
+        <button id="saveAttemptBtn" class="secondary">Save Current as Attempt</button>
+        <button id="nextAttemptBtn" class="secondary">Create Next Attempt From Patch</button>
+        <div class="workspace-grid">
+          <div>
+            <div class="output-title"><span>case</span></div>
+            <pre id="caseOutput"></pre>
+          </div>
+          <div>
+            <div class="output-title"><span>attempt</span></div>
+            <pre id="attemptOutput"></pre>
+          </div>
+          <div>
+            <div class="output-title"><span>case attempts</span></div>
+            <pre id="attemptListOutput"></pre>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Compile</h2>
         <label for="rawPrompt">raw_prompt</label>

@@ -6,6 +6,28 @@ import logging
 from fastapi import APIRouter, Request
 from sqlalchemy.orm import Session
 
+from anc_gateway.attempts.job_manager import (
+    attempt_to_response,
+    case_to_response,
+    create_attempt,
+    create_case,
+    get_attempt,
+    get_case,
+    link_attempt_manual_audit,
+    link_attempt_manual_job,
+    link_attempt_patch,
+    list_case_attempts,
+    list_recent_cases,
+)
+from anc_gateway.attempts.schemas import (
+    AttemptCreateRequest,
+    AttemptLinkManualAuditRequest,
+    AttemptLinkManualJobRequest,
+    AttemptLinkPatchRequest,
+    AttemptResponse,
+    CaseCreateRequest,
+    CaseResponse,
+)
 from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
 from anc_gateway.audit.schemas import ManualAuditCreateRequest, ManualAuditResponse
 from anc_gateway.api.models import AuditRequest, CompileRequest, HealthResponse, RecoverRequest
@@ -67,7 +89,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "6A"
+SERVICE_PHASE = "6B"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -96,6 +118,118 @@ def vendor_capabilities_endpoint(vendor: str) -> VendorCapability:
     if not default_vendor_registry.has(vendor):
         raise ValueError(f"Unknown render vendor: {vendor}")
     return get_vendor_capability(vendor)
+
+
+@router.post("/cases", response_model=CaseResponse)
+def create_case_endpoint(request: Request, payload: CaseCreateRequest) -> CaseResponse:
+    with get_session() as session:
+        case = create_case(session, payload, request_id=get_request_id(request))
+        return case_to_response(case)
+
+
+@router.get("/cases/recent", response_model=list[CaseResponse])
+def recent_cases_endpoint(limit: int = 20) -> list[CaseResponse]:
+    with get_session() as session:
+        return [case_to_response(case) for case in list_recent_cases(session, limit=limit)]
+
+
+@router.get("/cases/{case_id}", response_model=CaseResponse)
+def get_case_endpoint(case_id: str) -> CaseResponse:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        return case_to_response(case)
+
+
+@router.post("/cases/{case_id}/attempts", response_model=AttemptResponse)
+def create_attempt_endpoint(
+    request: Request,
+    case_id: str,
+    payload: AttemptCreateRequest,
+) -> AttemptResponse:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        attempt = create_attempt(session, case, payload, request_id=get_request_id(request))
+        return attempt_to_response(attempt)
+
+
+@router.get("/cases/{case_id}/attempts", response_model=list[AttemptResponse])
+def list_case_attempts_endpoint(case_id: str) -> list[AttemptResponse]:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        return [attempt_to_response(attempt) for attempt in list_case_attempts(session, case_id)]
+
+
+@router.get("/attempts/{attempt_id}", response_model=AttemptResponse)
+def get_attempt_endpoint(attempt_id: str) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        return attempt_to_response(attempt)
+
+
+@router.post("/attempts/{attempt_id}/manual-job", response_model=AttemptResponse)
+def link_attempt_manual_job_endpoint(
+    attempt_id: str,
+    payload: AttemptLinkManualJobRequest,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        return attempt_to_response(
+            link_attempt_manual_job(
+                session,
+                attempt,
+                manual_job_id=payload.manual_job_id,
+                result_video_uri=payload.result_video_uri,
+            )
+        )
+
+
+@router.post("/attempts/{attempt_id}/manual-audit", response_model=AttemptResponse)
+def link_attempt_manual_audit_endpoint(
+    attempt_id: str,
+    payload: AttemptLinkManualAuditRequest,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        return attempt_to_response(
+            link_attempt_manual_audit(
+                session,
+                attempt,
+                manual_audit_id=payload.manual_audit_id,
+                failure_record_id=payload.failure_record_id,
+            )
+        )
+
+
+@router.post("/attempts/{attempt_id}/patch", response_model=AttemptResponse)
+def link_attempt_patch_endpoint(
+    attempt_id: str,
+    payload: AttemptLinkPatchRequest,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        patch_prompt = _extract_patch_prompt(payload.patch_packet)
+        return attempt_to_response(
+            link_attempt_patch(
+                session,
+                attempt,
+                patch_prompt=patch_prompt,
+                patch_record_id=payload.patch_record_id,
+            )
+        )
 
 
 @router.post("/compile", response_model=CompiledRenderPacket)
@@ -475,3 +609,13 @@ def _packet_from_saved_fields(
         ruleset_fingerprint=ruleset_fingerprint,
         compiler_version=compiler_version,
     )
+
+
+def _extract_patch_prompt(patch_packet: PatchPacket | dict[str, object]) -> str:
+    if isinstance(patch_packet, PatchPacket):
+        return patch_packet.patch_prompt or patch_packet.positive_lock
+    for key in ("patch_prompt", "positive_lock", "suggested_positive_lock"):
+        value = patch_packet.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return json.dumps(patch_packet, ensure_ascii=False, sort_keys=True)

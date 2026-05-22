@@ -154,6 +154,12 @@ pre {
   gap: 12px;
 }
 
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .error-panel pre {
   color: #ffd7d7;
 }
@@ -218,7 +224,8 @@ pre {
 
 @media (max-width: 840px) {
   .layout,
-  .recent-grid {
+  .recent-grid,
+  .workspace-grid {
     grid-template-columns: 1fr;
   }
 

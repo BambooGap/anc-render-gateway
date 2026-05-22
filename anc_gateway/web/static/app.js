@@ -5,6 +5,8 @@ const state = {
   manualAudit: null,
   patchPacket: null,
   lastPatchPacket: null,
+  case: null,
+  currentAttempt: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -143,6 +145,13 @@ async function createManualJob() {
   });
   showJson("copyInstructions", state.manualJob.copy_instructions);
   showJson("manualJobOutput", state.manualJob);
+  if (state.currentAttempt) {
+    state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/manual-job`, {
+      method: "POST",
+      body: JSON.stringify({ manual_job_id: state.manualJob.manual_job_id }),
+    });
+    await showAttemptWorkspace();
+  }
   await refreshRecent();
 }
 
@@ -159,6 +168,16 @@ async function completeManualJob() {
     }),
   });
   showJson("completeManualJobOutput", state.manualJob);
+  if (state.currentAttempt) {
+    state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/manual-job`, {
+      method: "POST",
+      body: JSON.stringify({
+        manual_job_id: state.manualJob.manual_job_id,
+        result_video_uri: state.manualJob.result_video_uri,
+      }),
+    });
+    await showAttemptWorkspace();
+  }
   await refreshRecent();
 }
 
@@ -177,6 +196,16 @@ async function submitManualAudit() {
     }),
   });
   showJson("manualAuditOutput", state.manualAudit);
+  if (state.currentAttempt) {
+    state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/manual-audit`, {
+      method: "POST",
+      body: JSON.stringify({
+        manual_audit_id: state.manualAudit.audit_id,
+        failure_record_id: state.manualAudit.failure_record_id,
+      }),
+    });
+    await showAttemptWorkspace();
+  }
   await refreshRecent();
 }
 
@@ -190,6 +219,87 @@ async function buildPatchPacket() {
   });
   state.lastPatchPacket = state.patchPacket;
   showJson("recoverOutput", state.patchPacket);
+  if (state.currentAttempt) {
+    state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/patch`, {
+      method: "POST",
+      body: JSON.stringify({ patch_packet: state.patchPacket }),
+    });
+    await showAttemptWorkspace();
+  }
+}
+
+async function createCase() {
+  state.case = await apiFetch("/cases", {
+    method: "POST",
+    body: JSON.stringify({
+      title: el("caseTitle").value || null,
+      raw_prompt: el("rawPrompt").value,
+      platform: el("platform").value,
+    }),
+  });
+  state.currentAttempt = null;
+  showJson("caseOutput", state.case);
+  showJson("attemptOutput", "");
+  await showAttemptList();
+}
+
+async function saveCurrentAttempt() {
+  if (!state.case) {
+    showError({ error: { code: "MISSING_CASE", message: "Create a Case first.", request_id: state.requestId } });
+    return;
+  }
+  if (!state.packet) {
+    showError({ error: { code: "MISSING_PACKET", message: "Run Compile first.", request_id: state.requestId } });
+    return;
+  }
+  state.currentAttempt = await apiFetch(`/cases/${state.case.case_id}/attempts`, {
+    method: "POST",
+    body: JSON.stringify({
+      raw_prompt: el("rawPrompt").value,
+      compiled_prompt: state.packet.compiled_prompt,
+      condition_hash: state.packet.condition_hash,
+      source_map: state.packet.source_map,
+    }),
+  });
+  await showAttemptWorkspace();
+}
+
+async function createNextAttemptFromPatch() {
+  if (!state.case || !state.currentAttempt) {
+    showError({ error: { code: "MISSING_ATTEMPT", message: "Save the current Attempt first.", request_id: state.requestId } });
+    return;
+  }
+  if (!state.lastPatchPacket && !state.patchPacket) {
+    showError({ error: { code: "MISSING_PATCH_PACKET", message: "Build Patch Packet first.", request_id: state.requestId } });
+    return;
+  }
+  state.currentAttempt = await apiFetch(`/cases/${state.case.case_id}/attempts`, {
+    method: "POST",
+    body: JSON.stringify({
+      previous_attempt_id: state.currentAttempt.attempt_id,
+      patch_packet: state.lastPatchPacket || state.patchPacket,
+    }),
+  });
+  el("rawPrompt").value = state.currentAttempt.raw_prompt;
+  state.packet = null;
+  showJson("compiledPrompt", "");
+  showJson("compileOutput", "");
+  renderFragmentQuickList(null);
+  await showAttemptWorkspace();
+}
+
+async function showAttemptWorkspace() {
+  showJson("attemptOutput", state.currentAttempt || "");
+  await showAttemptList();
+}
+
+async function showAttemptList() {
+  if (!state.case) {
+    showJson("attemptListOutput", "");
+    return;
+  }
+  const attempts = await apiFetch(`/cases/${state.case.case_id}/attempts`);
+  showJson("attemptListOutput", attempts);
 }
 
 async function refreshRecent() {
@@ -235,6 +345,9 @@ async function copyPatchPrompt() {
 
 function bindEvents() {
   el("compileBtn").addEventListener("click", compilePrompt);
+  el("createCaseBtn").addEventListener("click", createCase);
+  el("saveAttemptBtn").addEventListener("click", saveCurrentAttempt);
+  el("nextAttemptBtn").addEventListener("click", createNextAttemptFromPatch);
   el("createManualJobBtn").addEventListener("click", createManualJob);
   el("completeManualJobBtn").addEventListener("click", completeManualJob);
   el("submitManualAuditBtn").addEventListener("click", submitManualAudit);

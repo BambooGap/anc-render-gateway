@@ -195,3 +195,75 @@ class ManualAuditModel(TimestampMixin, Base):
     suggested_positive_lock: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     rfs_scores_json: Mapped[str] = mapped_column(Text)
+
+
+class CaseModel(Base):
+    __tablename__ = "cases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    raw_prompt: Mapped[str] = mapped_column(Text)
+    platform: Mapped[str] = mapped_column(String(128), index=True)
+    current_attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    metadata_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now,
+        onupdate=_now,
+    )
+
+
+class AttemptModel(Base):
+    __tablename__ = "attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("cases.id"), index=True)
+    request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    attempt_index: Mapped[int] = mapped_column(default=1)
+    status: Mapped[str] = mapped_column(String(64), index=True)
+    raw_prompt: Mapped[str] = mapped_column(Text)
+    compiled_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    condition_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    source_map_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_attempt_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("attempts.id"),
+        nullable=True,
+        index=True,
+    )
+    manual_job_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("manual_jobs.id"),
+        nullable=True,
+        index=True,
+    )
+    manual_audit_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("manual_audits.id"),
+        nullable=True,
+        index=True,
+    )
+    failure_record_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("failure_records.id"),
+        nullable=True,
+        index=True,
+    )
+    patch_record_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("patch_records.id"),
+        nullable=True,
+        index=True,
+    )
+    patch_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_video_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=_now,
+        onupdate=_now,
+    )
