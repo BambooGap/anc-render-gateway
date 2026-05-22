@@ -1,12 +1,20 @@
 # ANC Render Gateway
 
-ANC Render Gateway 第一阶段只实现本地 Parser Kernel：把自然语言提示词编译成更稳定、可追踪的 Render Packet，并把模拟 RFS 审计失败归一化为可修复的 Patch Packet。
+ANC Render Gateway 是一个 PromptOps 系统，用于 AI 视频生成的提示词工程。核心能力是把自然语言提示词编译成可追踪的 Render Packet，把审计失败归一化为可修复的 Patch Packet，并通过 Casebase 积累和复用历史修复经验。
+
+## 当前能力摘要
+
+- **FastAPI API**：`/compile`、`/audit`、`/recover`、`/manual-jobs`、`/manual-audits`、`/cases`、`/casebase/*`
+- **SQLite 持久化**：CompileJob、FailureRecord、PatchRecord、Case、Attempt、ManualJob、ManualAudit
+- **Manual Workflow Console**：极简 Web Console，支持完整人工编译-生成-审计-修复流程
+- **Case / Attempt Workspace**：同一镜头的多轮修复工作区，支持 accept/reject/archive/timeline/export
+- **PromptOps Casebase**：可搜索、可统计、可推荐的案例库
+- **Context-Aware Patch Packet**：根据对象类型和运动模型生成场景感知的修复补丁
+- **Ranking & Dedup**：推荐结果去重、排序评分（10 项加分 + 5 项扣分）、推荐理由
 
 ## 为什么先做 Parser Kernel
 
-视频生成模型的不确定性很高。第一阶段先用确定性的本地内核解决提示词切片、物体拓扑锁定、正向约束改写、Source Map 回指、失败归因和补丁生成，证明“推拉窗纠错闭环”可以跑通。
-
-当前不包含 FastAPI、数据库、Redis、云存储、真实视频 API、ComfyUI、真实 VLM 审计或前端页面。
+视频生成模型的不确定性很高。先用确定性的本地内核解决提示词切片、物体拓扑锁定、正向约束改写、Source Map 回指、失败归因和补丁生成，证明”推拉窗纠错闭环”可以跑通。
 
 ## 安装
 
@@ -121,7 +129,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "6C",
+  "phase": "6D",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
