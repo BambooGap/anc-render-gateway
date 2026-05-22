@@ -476,6 +476,16 @@ Console 行为：
 
 当前仍不包含真实视频 API、真实 VLM、登录系统、Redis、云存储或浏览器自动化。
 
+## Phase 6A.1 Console Usability Patch
+
+Phase 6A.1 只优化 Console 可读性和复制体验，不引入前端框架、npm 构建系统、真实视频 API、真实 VLM、登录系统、云存储或浏览器自动化。
+
+改进内容：
+
+- 长中文 prompt、copy instructions 和 JSON 输出会自动换行，减少横向滚动。
+- Manual Audit 区域显示 `source_map` fragment 快捷列表，可以直接点击 `frag_001` 等片段回填 `bad_prompt_fragment_ref`。
+- Recover 区域增加 `Copy Patch Prompt`，优先复制 `patch_prompt`，方便下一轮网页端生成。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译

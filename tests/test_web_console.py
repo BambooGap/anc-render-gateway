@@ -19,3 +19,13 @@ def test_console_serves_html_and_static_assets() -> None:
     assert "Manual Job" in html
     assert "Manual Audit" in html
     assert "Recover" in html
+    assert "Source Map Fragments" in html
+    assert "Copy Patch Prompt" in html
+
+    styles = styles_response.text
+    assert "pre-wrap" in styles
+
+    app_js = app_js_response.text
+    assert "fragmentQuickList" in app_js
+    assert "renderFragmentQuickList" in app_js
+    assert "copyPatchPrompt" in app_js

@@ -59,6 +59,10 @@
 
       <section class="panel">
         <h2>Manual Audit</h2>
+        <div class="output-title">
+          <span>Source Map Fragments</span>
+        </div>
+        <div id="fragmentQuickList" class="fragment-list">No source map available.</div>
         <label for="failureType">failure_type</label>
         <select id="failureType">
           <option value="window_flipping_bug">window_flipping_bug</option>
@@ -78,6 +82,8 @@
       <section class="panel">
         <h2>Recover</h2>
         <button id="buildPatchBtn">Build Patch Packet</button>
+        <button id="copyPatchPromptBtn" class="secondary">Copy Patch Prompt</button>
+        <span id="copyPatchStatus" class="copy-status" aria-live="polite"></span>
         <pre id="recoverOutput"></pre>
       </section>
 

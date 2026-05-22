@@ -106,6 +106,15 @@ button:hover {
   background: var(--accent-dark);
 }
 
+button.secondary {
+  margin-left: 8px;
+  background: #334155;
+}
+
+button.secondary:hover {
+  background: #1e293b;
+}
+
 button.small {
   margin: 0;
   padding: 5px 8px;
@@ -124,14 +133,19 @@ button.small {
 
 pre {
   min-height: 44px;
-  max-height: 360px;
-  overflow: auto;
+  max-height: 420px;
+  overflow-x: hidden;
+  overflow-y: auto;
   margin: 8px 0 0;
   padding: 10px;
   background: #0f1720;
   color: #e6edf3;
   border-radius: 6px;
   font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .recent-grid {
@@ -142,6 +156,64 @@ pre {
 
 .error-panel pre {
   color: #ffd7d7;
+}
+
+.fragment-list {
+  display: grid;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fragment-button {
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text);
+  text-align: left;
+}
+
+.fragment-button:hover {
+  background: #eef7f6;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.fragment-id {
+  display: block;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.fragment-text {
+  display: block;
+  margin-top: 4px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.fragment-rewrite {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.copy-status {
+  margin-left: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
 }
 
 @media (max-width: 840px) {

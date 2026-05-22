@@ -4,6 +4,7 @@ const state = {
   manualJob: null,
   manualAudit: null,
   patchPacket: null,
+  lastPatchPacket: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -14,6 +15,62 @@ function renderRequestId() {
 
 function showJson(id, value) {
   el(id).textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+}
+
+function createTextElement(tagName, className, text) {
+  const node = document.createElement(tagName);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+function normalizeFragments(sourceMap) {
+  if (!sourceMap) {
+    return null;
+  }
+  const fragments = sourceMap.fragments ?? sourceMap;
+  if (Array.isArray(fragments)) {
+    return fragments;
+  }
+  if (typeof fragments === "object" && fragments !== null) {
+    return Object.entries(fragments).map(([fragmentId, fragment]) => ({
+      fragment_ref: fragment.fragment_ref || fragment.fragment_id || fragmentId,
+      ...fragment,
+    }));
+  }
+  return [];
+}
+
+function renderFragmentQuickList(sourceMap) {
+  const container = el("fragmentQuickList");
+  container.replaceChildren();
+  const fragments = normalizeFragments(sourceMap);
+  if (fragments === null) {
+    container.textContent = "No source map available.";
+    return;
+  }
+  if (fragments.length === 0) {
+    container.textContent = "No fragments found.";
+    return;
+  }
+  fragments.forEach((fragment, index) => {
+    const fragmentId = fragment.fragment_ref || fragment.fragment_id || fragment.id || `frag_${String(index + 1).padStart(3, "0")}`;
+    const originalText = fragment.original_text || fragment.original || "";
+    const rewrittenText = fragment.rewritten_text || fragment.compiled_text || fragment.rewrite || "";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "fragment-button";
+    button.title = rewrittenText || originalText || fragmentId;
+    button.appendChild(createTextElement("span", "fragment-id", fragmentId));
+    button.appendChild(createTextElement("span", "fragment-text", originalText || "(empty original_text)"));
+    if (rewrittenText) {
+      button.appendChild(createTextElement("span", "fragment-rewrite", rewrittenText));
+    }
+    button.addEventListener("click", () => {
+      el("badPromptFragmentRef").value = fragmentId;
+    });
+    container.appendChild(button);
+  });
 }
 
 function showError(error) {
@@ -67,6 +124,7 @@ async function compilePrompt() {
   });
   showJson("compiledPrompt", state.packet.compiled_prompt);
   showJson("compileOutput", state.packet);
+  renderFragmentQuickList(state.packet.source_map);
 }
 
 async function createManualJob() {
@@ -130,6 +188,7 @@ async function buildPatchPacket() {
   state.patchPacket = await apiFetch(`/failures/${state.manualAudit.failure_record_id}/recover`, {
     method: "POST",
   });
+  state.lastPatchPacket = state.patchPacket;
   showJson("recoverOutput", state.patchPacket);
 }
 
@@ -151,12 +210,36 @@ async function copyFromPre(targetId) {
   }
 }
 
+function getPatchPromptText(patchPacket) {
+  if (!patchPacket) {
+    return "";
+  }
+  return patchPacket.patch_prompt || patchPacket.positive_lock || patchPacket.suggested_positive_lock || JSON.stringify(patchPacket, null, 2);
+}
+
+async function copyPatchPrompt() {
+  const status = el("copyPatchStatus");
+  const text = getPatchPromptText(state.lastPatchPacket || state.patchPacket);
+  if (!text) {
+    status.textContent = "Build a patch packet first.";
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  status.textContent = "Copied";
+  window.setTimeout(() => {
+    if (status.textContent === "Copied") {
+      status.textContent = "";
+    }
+  }, 1800);
+}
+
 function bindEvents() {
   el("compileBtn").addEventListener("click", compilePrompt);
   el("createManualJobBtn").addEventListener("click", createManualJob);
   el("completeManualJobBtn").addEventListener("click", completeManualJob);
   el("submitManualAuditBtn").addEventListener("click", submitManualAudit);
   el("buildPatchBtn").addEventListener("click", buildPatchPacket);
+  el("copyPatchPromptBtn").addEventListener("click", copyPatchPrompt);
   el("refreshRecentBtn").addEventListener("click", refreshRecent);
   document.querySelectorAll("[data-copy-target]").forEach((button) => {
     button.addEventListener("click", () => copyFromPre(button.dataset.copyTarget));
@@ -164,5 +247,6 @@ function bindEvents() {
 }
 
 renderRequestId();
+renderFragmentQuickList(null);
 bindEvents();
 refreshRecent().catch(showError);
