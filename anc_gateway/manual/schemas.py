@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from anc_gateway.core.schemas import PromptSourceMap
 
@@ -50,6 +50,14 @@ class CompleteManualJobRequest(BaseModel):
     result_video_uri: str
     user_notes: str | None = None
     status: ManualJobStatus = ManualJobStatus.COMPLETED
+
+    @field_validator("result_video_uri")
+    @classmethod
+    def validate_result_video_uri(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("result_video_uri must be a non-empty string")
+        return stripped
 
 
 class FailManualJobRequest(BaseModel):

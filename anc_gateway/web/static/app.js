@@ -204,10 +204,15 @@ async function completeManualJob() {
     showError({ error: { code: "MISSING_MANUAL_JOB", message: "Create a Manual Job first.", request_id: state.requestId } });
     return;
   }
+  const resultVideoUri = el("resultVideoUri").value.trim();
+  if (!resultVideoUri) {
+    showError({ error: { code: "VALIDATION_ERROR", message: "result_video_uri is required.", request_id: state.requestId } });
+    return;
+  }
   state.manualJob = await apiFetch(`/manual-jobs/${state.manualJob.manual_job_id}/complete`, {
     method: "POST",
     body: JSON.stringify({
-      result_video_uri: el("resultVideoUri").value,
+      result_video_uri: resultVideoUri,
       user_notes: el("userNotes").value || null,
     }),
   });

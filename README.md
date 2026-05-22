@@ -582,6 +582,35 @@ README 修正：
 
 当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
 
+## Phase 6B.3 Data Validation Hotfix
+
+Phase 6B.3 修复 `result_video_uri` 为空字符串时被接受的问题。
+
+修复内容：
+
+- `CompleteManualJobRequest` 增加 Pydantic v2 `field_validator`：
+  - `result_video_uri` 必须是非空字符串
+  - 自动 strip 前后空格
+  - 空字符串或只有空格时返回 422 错误
+- Console 前端增加校验：
+  - `result_video_uri` 为空或只有空格时，不发送请求
+  - 页面内显示错误提示："result_video_uri is required."
+  - 不使用 alert
+
+合法示例：
+
+- `file:///tmp/manual_video.mp4`
+- `mock://renders/example.mp4`
+- `https://example.com/video.mp4`
+
+非法示例：
+
+- `""`（空字符串）
+- `"   "`（只有空格）
+- `"\t\n"`（只有空白字符）
+
+当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译
