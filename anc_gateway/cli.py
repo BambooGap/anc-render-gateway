@@ -677,6 +677,68 @@ def patch_context_demo() -> None:
     print(f"  All identical: {'YES - PROBLEM!' if unique_prompts == 1 else 'NO - GOOD'}")
 
 
+def casebase_ranking_demo() -> None:
+    """Demo: show ranking and dedup in casebase recommendations."""
+    from anc_gateway.recovery.patch_packet import build_patch_packet
+    from anc_gateway.storage.repositories import save_failure_record, save_patch_record
+
+    with get_session() as session:
+        # Create multiple cases with different object types
+        scenarios = [
+            ("sliding_window_case", "她轻轻推开了推拉窗。", "window_flipping_bug"),
+            ("valve_case", "她顺时针旋转阀门，水流变小。", "window_flipping_bug"),
+            ("drawer_case", "她将抽屉从滑轨中拉出。", "window_flipping_bug"),
+            ("custom_case", "场景光线不一致。", "custom"),
+        ]
+
+        for title, raw_prompt, failure_type in scenarios:
+            packet = compile_render_packet(
+                StateT(id=f"state_{title}", shot_id=f"shot_{title}"),
+                RenderContract(shot_id=f"shot_{title}"),
+                raw_prompt,
+            )
+            audit = RFSAuditResult(ok=False, raw_signature=failure_type, bad_prompt_fragment_ref="frag_001")
+            record = normalize_rfs_failure(audit, packet)
+            failure = save_failure_record(
+                session, record, audit,
+                condition_hash=packet.condition_hash,
+                ruleset_fingerprint=packet.ruleset_fingerprint,
+                request_id=f"cli-ranking-{title}",
+            )
+            patch = build_patch_packet(record)
+            save_patch_record(session, patch, failure_record_id=failure.id, request_id=f"cli-ranking-{title}")
+
+        session.commit()
+
+        # Now recommend for valve context
+        request = RecommendRequest(
+            failure_signature="object_rotation_error",
+            bad_prompt_fragment="她双手握住圆形阀门，沿中心轴旋转",
+            object_type="valve",
+            motion_model="center_axis_rotation",
+            limit=5,
+        )
+        response = recommend_patches(session, request)
+
+        print("=== Casebase Ranking Demo ===")
+        print(f"Query: failure_signature={request.failure_signature}")
+        print(f"       object_type={request.object_type}")
+        print(f"       motion_model={request.motion_model}")
+        print(f"\nTotal candidates (before dedup): {response.total_candidates}")
+        print(f"Recommended patches (after dedup): {len(response.recommended_patches)}")
+
+        for i, p in enumerate(response.recommended_patches):
+            print(f"\n[{i+1}] ranking_score={p.ranking_score:.2f}")
+            print(f"    failure_signature: {p.failure_signature}")
+            print(f"    object_type: {p.object_type}")
+            print(f"    motion_model: {p.motion_model}")
+            print(f"    matched_by: {p.matched_by}")
+            print(f"    duplicate_count: {p.duplicate_count}")
+            print(f"    reason: {p.reason}")
+            prompt = p.patch_prompt or ""
+            print(f"    patch_prompt: {prompt[:80]}{'...' if len(prompt) > 80 else ''}")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -692,6 +754,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "console",
             "attempt-loop-demo",
             "casebase-demo",
+            "casebase-ranking-demo",
             "export-case-demo",
             "patch-context-demo",
             "vendor-demo",
@@ -708,6 +771,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         attempt_loop_demo()
     elif args.command == "casebase-demo":
         casebase_demo()
+    elif args.command == "casebase-ranking-demo":
+        casebase_ranking_demo()
     elif args.command == "export-case-demo":
         export_case_demo()
     elif args.command == "patch-context-demo":

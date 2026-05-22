@@ -684,6 +684,53 @@ python -m anc_gateway.cli patch-context-demo
 
 当前仍不使用 LLM、向量数据库、真实 VLM、真实视频 API。
 
+## Phase 6D Casebase Ranking & Dedup
+
+Phase 6D 增加推荐结果去重、排序评分、上下文感知推荐和推荐理由，提升 Casebase 推荐质量。
+
+核心改变：
+
+- 推荐结果按 `patch_prompt` 去重，相同补丁只保留最高分
+- 排序评分机制取代简单 confidence：10 项加分规则 + 5 项扣分规则
+- 推荐请求支持 `object_type` 和 `motion_model` 上下文参数
+- 每条推荐结果附带 `reason` 解释文本和 `matched_by` 匹配来源列表
+- 新增 `duplicate_count` 和 `source_case_count` 去重统计字段
+- `/casebase/patches?dedupe=true` 支持补丁列表去重
+
+排序评分规则：
+
+| 规则 | 分值 | 说明 |
+|---|---|---|
+| exact_signature | +0.50 | 精确 failure_signature 匹配 |
+| same_category | +0.25 | 同 failure_category |
+| object_type_match | +0.20 | object_type 与请求匹配 |
+| motion_model_match | +0.20 | motion_model 与请求匹配 |
+| fragment_keyword | +0.10 | bad_prompt_fragment 关键词重叠 |
+| patch_context_exists | +0.10 | 补丁包含 patch_context |
+| accepted | +0.15 | 来自已接受的 attempt/case |
+| non_generic | +0.10 | 非通用模板补丁 |
+| recent | +0.05 | 30 天内创建 |
+
+扣分规则：
+
+| 规则 | 分值 | 说明 |
+|---|---|---|
+| custom failure | -0.10 | failure_signature 为 custom |
+| generic_object | -0.10 | object_type 为 generic_object |
+| unknown_motion | -0.10 | motion_model 为 unknown |
+| too_short | -0.05 | patch_prompt 少于 20 字符 |
+| generic_phrases | -0.15 | 包含通用模板短语 |
+
+Console Casebase 推荐面板新增 `object_type` 和 `motion_model` 输入字段，推荐结果展示排序分数、理由、匹配来源和去重统计。
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli casebase-ranking-demo
+```
+
+当前仍不使用 LLM、向量数据库、真实 VLM、真实视频 API。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译

@@ -100,7 +100,7 @@ def test_recommend_patches_exact_signature_match() -> None:
         result = recommend_patches(session, request)
     assert len(result.recommended_patches) >= 1
     assert result.recommended_patches[0].confidence == 0.9
-    assert result.recommended_patches[0].matched_by == "exact_signature"
+    assert "exact_signature" in result.recommended_patches[0].matched_by
     assert result.recommended_patches[0].failure_signature == "object_rotation_error"
 
 

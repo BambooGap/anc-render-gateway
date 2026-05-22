@@ -40,11 +40,15 @@ class PatchRecordItem(BaseModel):
     case_title: str | None = None
     attempt_id: str | None = None
     created_at: str | None = None
+    duplicate_count: int = 1
 
 
 class RecommendRequest(BaseModel):
     failure_signature: str
+    failure_category: str | None = None
     bad_prompt_fragment: str | None = None
+    object_type: str | None = None
+    motion_model: str | None = None
     limit: int = Field(default=5, ge=1, le=20)
 
 
@@ -58,8 +62,15 @@ class RecommendedPatch(BaseModel):
     target_fragment_ref: str | None = None
     case_id: str | None = None
     case_title: str | None = None
+    attempt_id: str | None = None
     confidence: float
-    matched_by: str
+    matched_by: str | list[str] = ""
+    ranking_score: float = 0.0
+    reason: str = ""
+    duplicate_count: int = 1
+    source_case_count: int = 1
+    object_type: str | None = None
+    motion_model: str | None = None
 
 
 class RecommendResponse(BaseModel):

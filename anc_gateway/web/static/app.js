@@ -560,12 +560,42 @@ async function recommendPatches() {
     return;
   }
   const fragment = el("recommendFragment").value.trim();
+  const objectType = el("recommendObjectType") ? el("recommendObjectType").value.trim() : "";
+  const motionModel = el("recommendMotionModel") ? el("recommendMotionModel").value.trim() : "";
   const payload = { failure_signature: sig, limit: 5 };
   if (fragment) payload.bad_prompt_fragment = fragment;
+  if (objectType) payload.object_type = objectType;
+  if (motionModel) payload.motion_model = motion_model;
   const result = await apiFetch("/casebase/recommend-patches", {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  showJson("casebaseRecommendations", result);
+  renderRecommendations(result);
   showStatus(`Recommended ${result.recommended_patches.length} patches`);
+}
+
+function renderRecommendations(result) {
+  const container = el("casebaseRecommendations");
+  if (!container) return;
+  const patches = result.recommended_patches || [];
+  if (patches.length === 0) {
+    container.textContent = "No recommendations found.";
+    return;
+  }
+  let text = `Total candidates (before dedup): ${result.total_candidates}\n`;
+  text += `Recommended patches (after dedup): ${patches.length}\n\n`;
+  patches.forEach((p, i) => {
+    text += `[${i + 1}] ranking_score=${(p.ranking_score || 0).toFixed(2)}  confidence=${p.confidence}\n`;
+    text += `    failure_signature: ${p.failure_signature}\n`;
+    if (p.object_type) text += `    object_type: ${p.object_type}\n`;
+    if (p.motion_model) text += `    motion_model: ${p.motion_model}\n`;
+    const matchedBy = Array.isArray(p.matched_by) ? p.matched_by.join(", ") : (p.matched_by || "");
+    text += `    matched_by: ${matchedBy}\n`;
+    text += `    duplicate_count: ${p.duplicate_count || 1}\n`;
+    text += `    source_case_count: ${p.source_case_count || 1}\n`;
+    text += `    reason: ${p.reason || "N/A"}\n`;
+    const prompt = p.patch_prompt || "";
+    text += `    patch_prompt: ${prompt.length > 120 ? prompt.substring(0, 120) + "..." : prompt}\n\n`;
+  });
+  container.textContent = text;
 }

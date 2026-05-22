@@ -691,7 +691,7 @@ def casebase_failure_stats_endpoint() -> list[FailureSignatureStat]:
 
 
 @router.get("/casebase/patches", response_model=list[PatchRecordItem])
-def casebase_patches_endpoint(limit: int = 20) -> list[PatchRecordItem]:
+def casebase_patches_endpoint(limit: int = 20, dedupe: bool = False) -> list[PatchRecordItem]:
     with get_session() as session:
         patches = list_recent_patch_records(session, limit=limit)
         results: list[PatchRecordItem] = []
@@ -730,7 +730,23 @@ def casebase_patches_endpoint(limit: int = 20) -> list[PatchRecordItem]:
                     created_at=created_at,
                 )
             )
+
+        if dedupe:
+            results = _dedup_patch_items(results)
+
         return results
+
+
+def _dedup_patch_items(items: list[PatchRecordItem]) -> list[PatchRecordItem]:
+    """Dedup patch items by patch_prompt."""
+    seen: dict[str, PatchRecordItem] = {}
+    for item in items:
+        key = item.patch_prompt or ""
+        if key in seen:
+            seen[key].duplicate_count += 1
+        else:
+            seen[key] = item
+    return list(seen.values())
 
 
 @router.post("/casebase/recommend-patches", response_model=RecommendResponse)
