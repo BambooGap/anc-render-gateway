@@ -40,6 +40,10 @@ from anc_gateway.storage.repositories import (
     save_manual_audit,
     save_patch_record,
 )
+from anc_gateway.casebase.search import search_casebase
+from anc_gateway.casebase.stats import get_failure_signature_stats
+from anc_gateway.casebase.recommendations import recommend_patches
+from anc_gateway.casebase.schemas import RecommendRequest
 
 
 def demo_sliding_window() -> None:
@@ -554,6 +558,50 @@ def export_case_demo() -> None:
         print("\n".join(markdown.splitlines()[:24]))
 
 
+def casebase_demo() -> None:
+    with get_session() as session:
+        # 1. Failure signature stats
+        stats = get_failure_signature_stats(session)
+        print("=== Failure Signature Stats ===")
+        print(
+            json.dumps(
+                [s.model_dump(mode="json") for s in stats],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+        # 2. Search by text
+        search_results = search_casebase(session, q="推拉窗", limit=5)
+        print("\n=== Search: q='推拉窗' ===")
+        print(
+            json.dumps(
+                [r.model_dump(mode="json") for r in search_results],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+
+        # 3. Search by failure signature
+        if stats:
+            sig = stats[0].failure_signature
+            sig_results = search_casebase(session, failure_signature=sig, limit=5)
+            print(f"\n=== Search: failure_signature='{sig}' ===")
+            print(
+                json.dumps(
+                    [r.model_dump(mode="json") for r in sig_results],
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+
+            # 4. Recommend patches
+            request = RecommendRequest(failure_signature=sig, limit=3)
+            recommendations = recommend_patches(session, request)
+            print(f"\n=== Recommend Patches: failure_signature='{sig}' ===")
+            print(json.dumps(recommendations.model_dump(mode="json"), ensure_ascii=False, indent=2))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -568,6 +616,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "serve",
             "console",
             "attempt-loop-demo",
+            "casebase-demo",
             "export-case-demo",
             "vendor-demo",
         ],
@@ -581,6 +630,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         console()
     elif args.command == "attempt-loop-demo":
         attempt_loop_demo()
+    elif args.command == "casebase-demo":
+        casebase_demo()
     elif args.command == "export-case-demo":
         export_case_demo()
     elif args.command == "init-db":

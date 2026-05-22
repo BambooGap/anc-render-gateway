@@ -121,7 +121,7 @@ curl http://127.0.0.1:8000/version
 ```json
 {
   "service": "anc-render-gateway",
-  "phase": "6B",
+  "phase": "6C",
   "compiler_version": "anc-parser-kernel/0.1.0",
   "ruleset_fingerprint": "rc1"
 }
@@ -608,6 +608,38 @@ Phase 6B.3 修复 `result_video_uri` 为空字符串时被接受的问题。
 - `""`（空字符串）
 - `"   "`（只有空格）
 - `"\t\n"`（只有空白字符）
+
+当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
+
+## Phase 6C PromptOps Casebase MVP
+
+Phase 6C 增加 PromptOps Casebase 模块，提供可搜索、可统计、可推荐的案例库，让历史失败经验和修复补丁可以被复用。
+
+新增 API：
+
+- `GET /casebase/search`：按 failure_signature、failure_category、raw_failure_type 或文本搜索案例
+- `GET /casebase/stats/failures`：查看 failure signature 统计，按出现次数降序排列
+- `GET /casebase/patches`：查看最近保存的 Patch Record
+- `POST /casebase/recommend-patches`：根据 failure signature 和可选文本片段推荐修复补丁
+
+推荐策略：
+
+- 精确 failure_signature 匹配（confidence=0.9）
+- 同 failure_category 匹配（confidence=0.7）
+- bad_prompt_fragment 文本相似匹配（confidence=0.5）
+
+Console Casebase 区域：
+
+- 搜索面板：输入文本或 failure_signature 过滤
+- 推荐面板：输入 failure_signature 获取补丁推荐
+- Failure Stats：查看 failure signature 出现次数
+- Recent Patches：查看最近保存的修复补丁
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli casebase-demo
+```
 
 当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
 

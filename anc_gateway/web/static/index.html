@@ -152,6 +152,50 @@
         <h2>Errors</h2>
         <pre id="errorOutput"></pre>
       </section>
+
+      <section class="panel wide">
+        <h2>Casebase</h2>
+        <div class="casebase-controls">
+          <div class="casebase-search">
+            <label for="casebaseQuery">Search (text query)</label>
+            <input id="casebaseQuery" placeholder="Search by prompt text, failure signature..." />
+            <label for="casebaseSignature">failure_signature filter</label>
+            <input id="casebaseSignature" placeholder="e.g. object_rotation_error" />
+            <button id="casebaseSearchBtn">Search Casebase</button>
+          </div>
+          <div class="casebase-recommend">
+            <label for="recommendSignature">Recommend for failure_signature</label>
+            <input id="recommendSignature" placeholder="e.g. object_rotation_error" />
+            <label for="recommendFragment">bad_prompt_fragment (optional)</label>
+            <input id="recommendFragment" placeholder="Optional text fragment" />
+            <button id="recommendBtn">Recommend Patches</button>
+          </div>
+        </div>
+        <div class="recent-actions">
+          <button id="loadStatsBtn" class="secondary">Load Failure Stats</button>
+          <button id="loadPatchesBtn" class="secondary">Load Recent Patches</button>
+        </div>
+        <div class="casebase-grid">
+          <div>
+            <h3>Search Results</h3>
+            <pre id="casebaseSearchResults"></pre>
+          </div>
+          <div>
+            <h3>Recommendations</h3>
+            <pre id="casebaseRecommendations"></pre>
+          </div>
+        </div>
+        <div class="casebase-grid">
+          <div>
+            <h3>Failure Signature Stats</h3>
+            <pre id="casebaseFailureStats"></pre>
+          </div>
+          <div>
+            <h3>Recent Patches</h3>
+            <pre id="casebasePatches"></pre>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script src="/console/static/app.js"></script>

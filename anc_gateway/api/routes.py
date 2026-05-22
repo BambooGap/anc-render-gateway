@@ -79,12 +79,14 @@ from anc_gateway.render.schemas import (
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import get_session
+from anc_gateway.storage.models import FailureRecordModel
 from anc_gateway.storage.repositories import (
     get_compile_job_by_condition_hash,
     get_failure_record_by_id,
     get_or_create_gateway_transaction,
     list_recent_manual_audits,
     list_recent_failures,
+    list_recent_patch_records,
     save_compile_job,
     save_failure_record,
     save_manual_audit,
@@ -92,12 +94,22 @@ from anc_gateway.storage.repositories import (
 )
 from anc_gateway.vendors.capabilities import VendorCapability, get_vendor_capability
 from anc_gateway.vendors.registry import default_vendor_registry
+from anc_gateway.casebase.schemas import (
+    CasebaseSearchResult,
+    FailureSignatureStat,
+    PatchRecordItem,
+    RecommendRequest,
+    RecommendResponse,
+)
+from anc_gateway.casebase.search import search_casebase
+from anc_gateway.casebase.stats import get_failure_signature_stats
+from anc_gateway.casebase.recommendations import recommend_patches
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 SERVICE_NAME = "anc-render-gateway"
-SERVICE_PHASE = "6B"
+SERVICE_PHASE = "6C"
 DEFAULT_RENDER_CONTRACT = RenderContract(shot_id="default")
 
 
@@ -648,6 +660,85 @@ def recent_manual_audits_endpoint(limit: int = 20) -> list[ManualAuditResponse]:
             )
             for audit in list_recent_manual_audits(session, limit=limit)
         ]
+
+
+# ── Casebase endpoints ──────────────────────────────────────────────
+
+
+@router.get("/casebase/search", response_model=list[CasebaseSearchResult])
+def casebase_search_endpoint(
+    failure_signature: str | None = None,
+    failure_category: str | None = None,
+    raw_failure_type: str | None = None,
+    q: str | None = None,
+    limit: int = 20,
+) -> list[CasebaseSearchResult]:
+    with get_session() as session:
+        return search_casebase(
+            session,
+            failure_signature=failure_signature,
+            failure_category=failure_category,
+            raw_failure_type=raw_failure_type,
+            q=q,
+            limit=limit,
+        )
+
+
+@router.get("/casebase/stats/failures", response_model=list[FailureSignatureStat])
+def casebase_failure_stats_endpoint() -> list[FailureSignatureStat]:
+    with get_session() as session:
+        return get_failure_signature_stats(session)
+
+
+@router.get("/casebase/patches", response_model=list[PatchRecordItem])
+def casebase_patches_endpoint(limit: int = 20) -> list[PatchRecordItem]:
+    with get_session() as session:
+        patches = list_recent_patch_records(session, limit=limit)
+        results: list[PatchRecordItem] = []
+        for patch in patches:
+            failure_signature = None
+            case_id = None
+            case_title = None
+            attempt_id = None
+            created_at = patch.created_at.isoformat() if patch.created_at else None
+
+            if patch.failure_record_id:
+                failure = session.get(FailureRecordModel, patch.failure_record_id)
+                if failure:
+                    failure_signature = failure.failure_signature
+
+            patch_prompt = None
+            if patch.patch_packet_json:
+                try:
+                    patch_data = json.loads(patch.patch_packet_json)
+                    patch_prompt = patch_data.get("patch_prompt")
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+            results.append(
+                PatchRecordItem(
+                    patch_record_id=patch.id,
+                    failure_record_id=patch.failure_record_id,
+                    failure_signature=failure_signature,
+                    recovery_policy=patch.recovery_policy,
+                    patch_prompt=patch_prompt,
+                    positive_lock=patch.positive_lock,
+                    target_fragment_ref=patch.target_fragment_ref,
+                    case_id=case_id,
+                    case_title=case_title,
+                    attempt_id=attempt_id,
+                    created_at=created_at,
+                )
+            )
+        return results
+
+
+@router.post("/casebase/recommend-patches", response_model=RecommendResponse)
+def casebase_recommend_patches_endpoint(
+    payload: RecommendRequest,
+) -> RecommendResponse:
+    with get_session() as session:
+        return recommend_patches(session, payload)
 
 
 def _resolve_packet_for_manual_audit(

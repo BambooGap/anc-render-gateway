@@ -514,6 +514,10 @@ function bindEvents() {
   el("copyPatchPromptBtn").addEventListener("click", copyPatchPrompt);
   el("refreshRecentBtn").addEventListener("click", refreshRecent);
   el("refreshCasesBtn").addEventListener("click", loadRecentCases);
+  el("casebaseSearchBtn").addEventListener("click", searchCasebase);
+  el("loadStatsBtn").addEventListener("click", loadFailureStats);
+  el("loadPatchesBtn").addEventListener("click", loadRecentPatches);
+  el("recommendBtn").addEventListener("click", recommendPatches);
   document.querySelectorAll("[data-copy-target]").forEach((button) => {
     button.addEventListener("click", () => copyFromPre(button.dataset.copyTarget));
   });
@@ -524,3 +528,44 @@ renderFragmentQuickList(null);
 bindEvents();
 refreshRecent().catch(showError);
 loadRecentCases().catch(showError);
+
+async function searchCasebase() {
+  const q = el("casebaseQuery").value.trim();
+  const sig = el("casebaseSignature").value.trim();
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (sig) params.set("failure_signature", sig);
+  params.set("limit", "20");
+  const results = await apiFetch(`/casebase/search?${params}`);
+  showJson("casebaseSearchResults", results);
+  showStatus(`Casebase search: ${results.length} results`);
+}
+
+async function loadFailureStats() {
+  const stats = await apiFetch("/casebase/stats/failures");
+  showJson("casebaseFailureStats", stats);
+  showStatus(`Loaded ${stats.length} failure signatures`);
+}
+
+async function loadRecentPatches() {
+  const patches = await apiFetch("/casebase/patches?limit=20");
+  showJson("casebasePatches", patches);
+  showStatus(`Loaded ${patches.length} patches`);
+}
+
+async function recommendPatches() {
+  const sig = el("recommendSignature").value.trim();
+  if (!sig) {
+    showError({ error: { code: "VALIDATION_ERROR", message: "failure_signature is required for recommendations.", request_id: state.requestId } });
+    return;
+  }
+  const fragment = el("recommendFragment").value.trim();
+  const payload = { failure_signature: sig, limit: 5 };
+  if (fragment) payload.bad_prompt_fragment = fragment;
+  const result = await apiFetch("/casebase/recommend-patches", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  showJson("casebaseRecommendations", result);
+  showStatus(`Recommended ${result.recommended_patches.length} patches`);
+}

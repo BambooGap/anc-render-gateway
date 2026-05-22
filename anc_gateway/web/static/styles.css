@@ -247,10 +247,31 @@ pre {
   margin-bottom: 12px;
 }
 
+.casebase-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.casebase-search,
+.casebase-recommend {
+  display: flex;
+  flex-direction: column;
+}
+
+.casebase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 @media (max-width: 840px) {
   .layout,
   .recent-grid,
-  .workspace-grid {
+  .workspace-grid,
+  .casebase-controls,
+  .casebase-grid {
     grid-template-columns: 1fr;
   }
 

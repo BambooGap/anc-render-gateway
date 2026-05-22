@@ -211,3 +211,14 @@ def list_recent_manual_audits(session: Session, limit: int = 20) -> list[ManualA
             select(ManualAuditModel).order_by(ManualAuditModel.created_at.desc()).limit(bounded_limit)
         )
     )
+
+
+def list_recent_patch_records(session: Session, limit: int = 20) -> list[PatchRecordModel]:
+    bounded_limit = max(1, min(limit, 100))
+    return list(
+        session.scalars(
+            select(PatchRecordModel)
+            .order_by(PatchRecordModel.created_at.desc())
+            .limit(bounded_limit)
+        )
+    )
