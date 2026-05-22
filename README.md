@@ -517,6 +517,37 @@ python -m anc_gateway.cli attempt-loop-demo
 
 当前仍不包含真实视频 API、真实 VLM、登录系统、Redis、云存储、Playwright/Selenium、模拟登录或抓 cookie。
 
+## Phase 6B.1 Attempt Lifecycle Polish
+
+Phase 6B.1 在轻量 Attempt Loop 上补齐生命周期操作和复盘导出，仍保持单次 Console 流程与 Workspace 区域可用。
+
+新增 API：
+
+- `POST /attempts/{attempt_id}/accept`：接受当前 attempt，可用 `accept_case=true` 同步将 case 标记为 `ACCEPTED`。
+- `POST /attempts/{attempt_id}/reject`：拒绝当前 attempt，保存 notes，并将状态标记为 `REJECTED`。
+- `POST /cases/{case_id}/archive`：归档 case。
+- `POST /cases/{case_id}/reopen`：将 case 重新标记为 `ACTIVE`。
+- `POST /attempts/{attempt_id}/next`：基于上一轮 prompt 和 patch packet / patch prompt 创建下一轮 attempt，避免重复追加完全相同的修复约束。
+- `GET /cases/{case_id}/timeline`：按 `attempt_index` 升序返回面向 Console 展示的时间线。
+- `GET /cases/{case_id}/export.md`：导出 Obsidian 友好的 Markdown 复盘。
+
+Console Workspace 增加：
+
+1. `Accept Attempt`
+2. `Archive Case`
+3. `Export Markdown`
+4. `timeline` 展示区
+
+CLI 演示：
+
+```bash
+python -m anc_gateway.cli export-case-demo
+```
+
+导出的 Markdown 可以直接复制到 Obsidian 新笔记，或通过 Console 的 `Export Markdown` 打开后保存为 `.md` 文件。内容包含 Case 标题、Base Prompt、每轮 Attempt 的状态、Raw/Compiled Prompt、结果视频 URI、Failure/Patch Record ID、Notes，以及自动生成的 Lessons Learned。
+
+当前仍不包含真实视频 API、真实 VLM、Redis、云存储、登录系统、Playwright/Selenium、模拟登录或抓 cookie。
+
 ## 当前限制
 
 - 当前只支持规则式中文 Prompt 编译

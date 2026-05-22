@@ -106,6 +106,28 @@ async function apiFetch(path, options = {}) {
   return payload;
 }
 
+async function apiFetchText(path, options = {}) {
+  clearError();
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      "X-Request-ID": state.requestId,
+      ...(options.headers || {}),
+    },
+  });
+  const responseRequestId = response.headers.get("X-Request-ID");
+  if (responseRequestId) {
+    state.requestId = responseRequestId;
+    renderRequestId();
+  }
+  const payload = await response.text();
+  if (!response.ok) {
+    showError(payload);
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return payload;
+}
+
 async function compilePrompt() {
   const rawPrompt = el("rawPrompt").value;
   const payload = {
@@ -241,6 +263,7 @@ async function createCase() {
   showJson("caseOutput", state.case);
   showJson("attemptOutput", "");
   await showAttemptList();
+  await showTimeline();
 }
 
 async function saveCurrentAttempt() {
@@ -273,10 +296,9 @@ async function createNextAttemptFromPatch() {
     showError({ error: { code: "MISSING_PATCH_PACKET", message: "Build Patch Packet first.", request_id: state.requestId } });
     return;
   }
-  state.currentAttempt = await apiFetch(`/cases/${state.case.case_id}/attempts`, {
+  state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/next`, {
     method: "POST",
     body: JSON.stringify({
-      previous_attempt_id: state.currentAttempt.attempt_id,
       patch_packet: state.lastPatchPacket || state.patchPacket,
     }),
   });
@@ -288,9 +310,48 @@ async function createNextAttemptFromPatch() {
   await showAttemptWorkspace();
 }
 
+async function acceptAttempt() {
+  if (!state.currentAttempt) {
+    showError({ error: { code: "MISSING_ATTEMPT", message: "Save or select an Attempt first.", request_id: state.requestId } });
+    return;
+  }
+  state.currentAttempt = await apiFetch(`/attempts/${state.currentAttempt.attempt_id}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ accept_case: true }),
+  });
+  if (state.case) {
+    state.case = await apiFetch(`/cases/${state.case.case_id}`);
+    showJson("caseOutput", state.case);
+  }
+  await showAttemptWorkspace();
+}
+
+async function archiveCase() {
+  if (!state.case) {
+    showError({ error: { code: "MISSING_CASE", message: "Create a Case first.", request_id: state.requestId } });
+    return;
+  }
+  state.case = await apiFetch(`/cases/${state.case.case_id}/archive`, { method: "POST" });
+  showJson("caseOutput", state.case);
+  await showAttemptWorkspace();
+}
+
+async function exportMarkdown() {
+  if (!state.case) {
+    showError({ error: { code: "MISSING_CASE", message: "Create a Case first.", request_id: state.requestId } });
+    return;
+  }
+  const markdown = await apiFetchText(`/cases/${state.case.case_id}/export.md`);
+  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 async function showAttemptWorkspace() {
   showJson("attemptOutput", state.currentAttempt || "");
   await showAttemptList();
+  await showTimeline();
 }
 
 async function showAttemptList() {
@@ -300,6 +361,15 @@ async function showAttemptList() {
   }
   const attempts = await apiFetch(`/cases/${state.case.case_id}/attempts`);
   showJson("attemptListOutput", attempts);
+}
+
+async function showTimeline() {
+  if (!state.case) {
+    showJson("timelineOutput", "");
+    return;
+  }
+  const timeline = await apiFetch(`/cases/${state.case.case_id}/timeline`);
+  showJson("timelineOutput", timeline);
 }
 
 async function refreshRecent() {
@@ -348,6 +418,9 @@ function bindEvents() {
   el("createCaseBtn").addEventListener("click", createCase);
   el("saveAttemptBtn").addEventListener("click", saveCurrentAttempt);
   el("nextAttemptBtn").addEventListener("click", createNextAttemptFromPatch);
+  el("acceptAttemptBtn").addEventListener("click", acceptAttempt);
+  el("archiveCaseBtn").addEventListener("click", archiveCase);
+  el("exportMarkdownBtn").addEventListener("click", exportMarkdown);
   el("createManualJobBtn").addEventListener("click", createManualJob);
   el("completeManualJobBtn").addEventListener("click", completeManualJob);
   el("submitManualAuditBtn").addEventListener("click", submitManualAudit);

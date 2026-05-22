@@ -6,6 +6,10 @@ from anc_gateway.core.schemas import PatchPacket
 
 
 def merge_prompt_with_patch(base_prompt: str, patch_packet: PatchPacket | dict[str, Any]) -> str:
+    return build_next_attempt_prompt(base_prompt, patch_packet)
+
+
+def build_next_attempt_prompt(base_prompt: str, patch_packet: PatchPacket | dict[str, Any]) -> str:
     patch_prompt = _extract_patch_text(patch_packet)
     normalized_base = base_prompt.strip()
     if not patch_prompt:

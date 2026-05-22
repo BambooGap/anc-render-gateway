@@ -205,6 +205,7 @@ class CaseModel(Base):
     title: Mapped[str] = mapped_column(String(200))
     raw_prompt: Mapped[str] = mapped_column(Text)
     platform: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(64), default="ACTIVE", index=True)
     current_attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     metadata_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

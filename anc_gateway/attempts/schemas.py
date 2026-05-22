@@ -16,8 +16,16 @@ class AttemptStatus(StrEnum):
     VIDEO_COMPLETED = "VIDEO_COMPLETED"
     AUDITED = "AUDITED"
     PATCHED = "PATCHED"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+
+
+class CaseStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    ACCEPTED = "ACCEPTED"
+    ARCHIVED = "ARCHIVED"
 
 
 class CaseCreateRequest(BaseModel):
@@ -32,6 +40,7 @@ class CaseResponse(BaseModel):
     title: str
     raw_prompt: str
     platform: ManualVendorPlatform
+    status: CaseStatus
     current_attempt_id: str | None
     created_at: str | None
     updated_at: str | None
@@ -61,6 +70,20 @@ class AttemptLinkManualAuditRequest(BaseModel):
 class AttemptLinkPatchRequest(BaseModel):
     patch_packet: PatchPacket | dict[str, Any]
     patch_record_id: str | None = None
+
+
+class AcceptAttemptRequest(BaseModel):
+    accept_case: bool = True
+
+
+class RejectAttemptRequest(BaseModel):
+    notes: str | None = None
+
+
+class NextAttemptRequest(BaseModel):
+    patch_packet: PatchPacket | dict[str, Any] | None = None
+    patch_record_id: str | None = None
+    notes: str | None = None
 
 
 class AttemptResponse(BaseModel):

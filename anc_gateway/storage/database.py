@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from anc_gateway.storage.models import Base
@@ -29,6 +29,20 @@ def create_engine_from_url(database_url: str) -> Engine:
 
 def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    if engine.url.get_backend_name() == "sqlite":
+        _ensure_sqlite_columns(engine)
+
+
+def _ensure_sqlite_columns(engine: Engine) -> None:
+    with engine.begin() as connection:
+        case_columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(cases)")).fetchall()
+        }
+        if case_columns and "status" not in case_columns:
+            connection.execute(
+                text("ALTER TABLE cases ADD COLUMN status VARCHAR(64) DEFAULT 'ACTIVE'")
+            )
 
 
 @contextmanager

@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from sqlalchemy.orm import Session
 
+from anc_gateway.attempts.export import build_case_timeline, export_case_markdown
 from anc_gateway.attempts.job_manager import (
+    accept_attempt,
+    archive_case,
     attempt_to_response,
     case_to_response,
     create_attempt,
@@ -18,8 +21,11 @@ from anc_gateway.attempts.job_manager import (
     link_attempt_patch,
     list_case_attempts,
     list_recent_cases,
+    reject_attempt,
+    reopen_case,
 )
 from anc_gateway.attempts.schemas import (
+    AcceptAttemptRequest,
     AttemptCreateRequest,
     AttemptLinkManualAuditRequest,
     AttemptLinkManualJobRequest,
@@ -27,6 +33,8 @@ from anc_gateway.attempts.schemas import (
     AttemptResponse,
     CaseCreateRequest,
     CaseResponse,
+    NextAttemptRequest,
+    RejectAttemptRequest,
 )
 from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
 from anc_gateway.audit.schemas import ManualAuditCreateRequest, ManualAuditResponse
@@ -142,6 +150,24 @@ def get_case_endpoint(case_id: str) -> CaseResponse:
         return case_to_response(case)
 
 
+@router.post("/cases/{case_id}/archive", response_model=CaseResponse)
+def archive_case_endpoint(case_id: str) -> CaseResponse:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        return case_to_response(archive_case(session, case))
+
+
+@router.post("/cases/{case_id}/reopen", response_model=CaseResponse)
+def reopen_case_endpoint(case_id: str) -> CaseResponse:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        return case_to_response(reopen_case(session, case))
+
+
 @router.post("/cases/{case_id}/attempts", response_model=AttemptResponse)
 def create_attempt_endpoint(
     request: Request,
@@ -165,6 +191,25 @@ def list_case_attempts_endpoint(case_id: str) -> list[AttemptResponse]:
         return [attempt_to_response(attempt) for attempt in list_case_attempts(session, case_id)]
 
 
+@router.get("/cases/{case_id}/timeline")
+def case_timeline_endpoint(case_id: str) -> list[dict[str, object]]:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        return build_case_timeline(list_case_attempts(session, case_id))
+
+
+@router.get("/cases/{case_id}/export.md")
+def export_case_markdown_endpoint(case_id: str) -> Response:
+    with get_session() as session:
+        case = get_case(session, case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {case_id}")
+        markdown = export_case_markdown(case, list_case_attempts(session, case_id))
+        return Response(content=markdown, media_type="text/markdown")
+
+
 @router.get("/attempts/{attempt_id}", response_model=AttemptResponse)
 def get_attempt_endpoint(attempt_id: str) -> AttemptResponse:
     with get_session() as session:
@@ -172,6 +217,70 @@ def get_attempt_endpoint(attempt_id: str) -> AttemptResponse:
         if attempt is None:
             raise ValueError(f"Attempt not found: {attempt_id}")
         return attempt_to_response(attempt)
+
+
+@router.post("/attempts/{attempt_id}/accept", response_model=AttemptResponse)
+def accept_attempt_endpoint(
+    attempt_id: str,
+    payload: AcceptAttemptRequest | None = None,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        accept_case_value = payload.accept_case if payload is not None else True
+        return attempt_to_response(
+            accept_attempt(session, attempt, accept_case=accept_case_value)
+        )
+
+
+@router.post("/attempts/{attempt_id}/reject", response_model=AttemptResponse)
+def reject_attempt_endpoint(
+    attempt_id: str,
+    payload: RejectAttemptRequest | None = None,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        return attempt_to_response(
+            reject_attempt(session, attempt, notes=payload.notes if payload else None)
+        )
+
+
+@router.post("/attempts/{attempt_id}/next", response_model=AttemptResponse)
+def create_next_attempt_endpoint(
+    request: Request,
+    attempt_id: str,
+    payload: NextAttemptRequest | None = None,
+) -> AttemptResponse:
+    with get_session() as session:
+        attempt = get_attempt(session, attempt_id)
+        if attempt is None:
+            raise ValueError(f"Attempt not found: {attempt_id}")
+        case = get_case(session, attempt.case_id)
+        if case is None:
+            raise ValueError(f"Case not found: {attempt.case_id}")
+        patch_packet: PatchPacket | dict[str, object] | None = (
+            payload.patch_packet if payload else None
+        )
+        if patch_packet is None and attempt.patch_prompt:
+            patch_packet = {"patch_prompt": attempt.patch_prompt}
+        if patch_packet is None:
+            raise ValueError(f"Attempt has no patch packet or patch prompt: {attempt_id}")
+        next_attempt = create_attempt(
+            session,
+            case,
+            AttemptCreateRequest(
+                previous_attempt_id=attempt.id,
+                patch_packet=patch_packet,
+                notes=payload.notes if payload else None,
+            ),
+            request_id=get_request_id(request),
+        )
+        if payload and payload.patch_record_id:
+            next_attempt.patch_record_id = payload.patch_record_id
+        return attempt_to_response(next_attempt)
 
 
 @router.post("/attempts/{attempt_id}/manual-job", response_model=AttemptResponse)

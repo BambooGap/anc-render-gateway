@@ -4,6 +4,7 @@ import argparse
 import json
 from collections.abc import Sequence
 
+from anc_gateway.attempts.export import export_case_markdown
 from anc_gateway.attempts.job_manager import (
     attempt_to_response,
     case_to_response,
@@ -12,6 +13,7 @@ from anc_gateway.attempts.job_manager import (
     link_attempt_manual_audit,
     link_attempt_manual_job,
     link_attempt_patch,
+    list_case_attempts,
 )
 from anc_gateway.attempts.schemas import AttemptCreateRequest, CaseCreateRequest
 from anc_gateway.audit.manual_audit import build_rfs_audit_from_manual_request
@@ -32,7 +34,12 @@ from anc_gateway.render.schemas import RenderJobCreateRequest
 from anc_gateway.rfs.failure_normalizer import normalize_rfs_failure
 from anc_gateway.recovery.patch_packet import build_patch_packet
 from anc_gateway.storage.database import create_engine_from_url, get_database_url, get_session, init_db
-from anc_gateway.storage.repositories import list_recent_failures, save_failure_record, save_manual_audit
+from anc_gateway.storage.repositories import (
+    list_recent_failures,
+    save_failure_record,
+    save_manual_audit,
+    save_patch_record,
+)
 
 
 def demo_sliding_window() -> None:
@@ -455,6 +462,98 @@ def attempt_loop_demo() -> None:
         print(json.dumps(attempt_to_response(attempt_2).model_dump(mode="json"), ensure_ascii=False, indent=2))
 
 
+def export_case_demo() -> None:
+    state = StateT(
+        id="state_export_case_demo_001",
+        shot_id="shot_export_case_demo_001",
+        objects=[
+            SceneObject(
+                id="window_01",
+                name="推拉窗",
+                object_type="sliding_window",
+                topology={"dof": "horizontal_slide", "rail": "上下轨道"},
+            )
+        ],
+    )
+    contract = RenderContract(shot_id="shot_export_case_demo_001", ruleset_fingerprint="rc1")
+    raw_prompt = "她轻轻推开了推拉窗，冷白色应急灯照进房间。"
+    packet = compile_render_packet(state, contract, raw_prompt)
+
+    with get_session() as session:
+        case = create_case(
+            session,
+            CaseCreateRequest(raw_prompt=raw_prompt, title="export-case-demo"),
+            request_id="cli-export-case-demo",
+        )
+        attempt_1 = create_attempt(
+            session,
+            case,
+            AttemptCreateRequest(
+                raw_prompt=raw_prompt,
+                compiled_prompt=packet.compiled_prompt,
+                condition_hash=packet.condition_hash,
+                source_map=packet.source_map,
+            ),
+            request_id="cli-export-case-demo",
+        )
+        audit_request = ManualAuditCreateRequest(
+            bad_prompt_fragment_ref="frag_001",
+            failure_type="window_flipping_bug",
+        )
+        audit = build_rfs_audit_from_manual_request(audit_request)
+        record = normalize_rfs_failure(audit, packet)
+        failure = save_failure_record(
+            session,
+            record,
+            audit,
+            condition_hash=packet.condition_hash,
+            ruleset_fingerprint=packet.ruleset_fingerprint,
+            request_id="cli-export-case-demo",
+        )
+        manual_audit = save_manual_audit(
+            session,
+            request_id="cli-export-case-demo",
+            manual_job_id=None,
+            render_job_id=None,
+            condition_hash=packet.condition_hash,
+            bad_prompt_fragment_ref="frag_001",
+            raw_failure_type=audit_request.failure_type,
+            failure_signature=record.signature,
+            failure_category=record.category,
+            recovery_policy=record.recovery_policy,
+            suggested_positive_lock=record.suggested_positive_lock,
+            notes=audit_request.notes,
+            rfs_scores=audit.details["rfs_scores"],
+        )
+        attempt_1 = link_attempt_manual_audit(
+            session,
+            attempt_1,
+            manual_audit_id=manual_audit.id,
+            failure_record_id=failure.id,
+        )
+        patch = build_patch_packet(record)
+        patch_record = save_patch_record(
+            session,
+            patch,
+            failure_record_id=failure.id,
+            request_id="cli-export-case-demo",
+        )
+        attempt_1 = link_attempt_patch(
+            session,
+            attempt_1,
+            patch_prompt=patch.patch_prompt,
+            patch_record_id=patch_record.id,
+        )
+        create_attempt(
+            session,
+            case,
+            AttemptCreateRequest(previous_attempt_id=attempt_1.id, patch_packet=patch),
+            request_id="cli-export-case-demo",
+        )
+        markdown = export_case_markdown(case, list_case_attempts(session, case.id))
+        print("\n".join(markdown.splitlines()[:24]))
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="anc-gateway")
     parser.add_argument(
@@ -469,6 +568,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             "serve",
             "console",
             "attempt-loop-demo",
+            "export-case-demo",
             "vendor-demo",
         ],
     )
@@ -481,6 +581,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         console()
     elif args.command == "attempt-loop-demo":
         attempt_loop_demo()
+    elif args.command == "export-case-demo":
+        export_case_demo()
     elif args.command == "init-db":
         init_database()
     elif args.command == "manual-audit-demo":

@@ -5,13 +5,14 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from anc_gateway.attempts.prompt_merge import merge_prompt_with_patch
+from anc_gateway.attempts.prompt_merge import build_next_attempt_prompt
 from anc_gateway.attempts.schemas import (
     AttemptCreateRequest,
     AttemptResponse,
     AttemptStatus,
     CaseCreateRequest,
     CaseResponse,
+    CaseStatus,
 )
 from anc_gateway.manual.schemas import ManualVendorPlatform
 from anc_gateway.storage.models import AttemptModel, CaseModel
@@ -29,6 +30,7 @@ def create_case(
         title=title,
         raw_prompt=request.raw_prompt,
         platform=request.platform.value,
+        status=CaseStatus.ACTIVE.value,
         metadata_json=dumps_json(request.metadata),
     )
     session.add(model)
@@ -57,7 +59,7 @@ def create_attempt(
     raw_prompt = request.raw_prompt or (previous.raw_prompt if previous else case.raw_prompt)
     if previous and request.patch_packet is not None:
         base_prompt = previous.compiled_prompt or previous.raw_prompt
-        raw_prompt = merge_prompt_with_patch(base_prompt, request.patch_packet)
+        raw_prompt = build_next_attempt_prompt(base_prompt, request.patch_packet)
     attempt_index = _next_attempt_index(session, case.id)
     status = AttemptStatus.COMPILED if request.compiled_prompt else AttemptStatus.DRAFT
     model = AttemptModel(
@@ -138,12 +140,51 @@ def link_attempt_patch(
     return attempt
 
 
+def accept_attempt(
+    session: Session,
+    attempt: AttemptModel,
+    accept_case: bool = True,
+) -> AttemptModel:
+    attempt.status = AttemptStatus.ACCEPTED.value
+    if accept_case:
+        case = session.get(CaseModel, attempt.case_id)
+        if case is not None:
+            case.status = CaseStatus.ACCEPTED.value
+            case.current_attempt_id = attempt.id
+    session.flush()
+    return attempt
+
+
+def reject_attempt(
+    session: Session,
+    attempt: AttemptModel,
+    notes: str | None = None,
+) -> AttemptModel:
+    attempt.status = AttemptStatus.REJECTED.value
+    attempt.notes = notes
+    session.flush()
+    return attempt
+
+
+def archive_case(session: Session, case: CaseModel) -> CaseModel:
+    case.status = CaseStatus.ARCHIVED.value
+    session.flush()
+    return case
+
+
+def reopen_case(session: Session, case: CaseModel) -> CaseModel:
+    case.status = CaseStatus.ACTIVE.value
+    session.flush()
+    return case
+
+
 def case_to_response(case: CaseModel) -> CaseResponse:
     return CaseResponse(
         case_id=case.id,
         title=case.title,
         raw_prompt=case.raw_prompt,
         platform=ManualVendorPlatform(case.platform),
+        status=CaseStatus(case.status),
         current_attempt_id=case.current_attempt_id,
         created_at=_datetime_to_iso(case.created_at),
         updated_at=_datetime_to_iso(case.updated_at),
